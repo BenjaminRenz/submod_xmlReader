@@ -174,3 +174,17 @@ struct DynamicList* ExampleMultiWordMatchList1=
         )
 );
 ```
+For each position in the document it starts with the first entry in the MultiWordMatchList and checks if that one matches, if not it tries the second word and so on.
+If there is not match for a given position it will increment the position by one and start again with the first WordMatchList.
+
+#### deleting the abovementioned lists ####
+When a dynamicList of the char,multichar,word or multiword type is no longer needed the (uppermost list in case of nested) list is passed to
+`deleteDynList(uppermostListPointer);` which will delte the dynlist (and all sublists in case of a nested list).
+
+#### getOffsetUntil ####
+To scan through a string of type utf32dynlist and match against the aforementioned lists the following function can be used:
+```
+uint32_t getOffsetUntil(uint32_t* xmlInUtf32, uint32_t maxScanLength, struct DynamicList* MatchAgainst, uint32_t* optional_matchIndex);
+```
+As argument it takes maxScanLength, which decides how long
+It will return the offset of a match or if there is not the maxScanLength. The optional_matchIndex is useful for MultiWordMatchLists and MultiCharMatchLists to find out which one of the entries caused the match.
