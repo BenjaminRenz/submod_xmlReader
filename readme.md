@@ -1,10 +1,15 @@
-Example xmlTree for an average document:
+# xml to dom tree libary #
+
+## examples of structs in the returned dom tree ##
+### root element ###
+```
 struct xmlTreeElement
 |__uint32_t type=xmltype_tag
 |__struct DynamicList* name=0;      
 |__struct xmlTreeElement* parent=0
 |__struct DynamicList* content=contentOfRootDocument;   
 |__struct DynamicList* attributes=XmlVersion;
+```
 
 struct DynamicList attributes
 |__uint32_t type=dynlisttype_keyValuePairsp;
