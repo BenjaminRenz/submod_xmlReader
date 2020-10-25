@@ -101,7 +101,7 @@ struct DynamicList UTF32string1
 |__uint32_t         = last_UTF32_char
 ```
 
-### xmlTreeElement
+### xmlTreeElement ###
 ```
 struct DynamicList xmlElementCollection
 |__uint32_t type          = dynlisttype_xmlELMNTCollectionp;
@@ -149,5 +149,28 @@ struct DynamicList* ExampleCharMatchList1=createMultiCharMatchList(2,
     createCharMatchList(2,'0','9')
 );
 ```
-#### ####
+#### word match lists ####
+multiple char match lists can be combined into word match lists, each letter of the word will then be compared to the corresponding char match list at this index.
+The list below will match (ok, Ok, oK and OK).
+```
+struct DynamicList* ExampleWordMatchList=createWordMatchList(2,
+    createCharMatchList(4,'o','o','O','O'),
+    createCharMatchList(4,'k','k','K','K')
+);
+```
+
+#### multi word match lists ####
+If you either want to match against multiple words simultaneously or you have specific requirements for the capitalization (only ok and OK) one use the following example:
+```
+struct DynamicList* ExampleMultiWordMatchList1=
+    createMultiWordMatchList(2,
+        createWordMatchList(2,
+            createCharMatchList(2,'o','o'),
+            createCharMatchList(2,'k','k')
+        ),
+        createWordMatchList(2,
+            createCharMatchList(2,'O','O'),
+            createCharMatchList(2,'K','K')
+        )
+);
 ```
