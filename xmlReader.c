@@ -6,15 +6,15 @@
 #include "xmlReader/xmlReader.h"
 #include "debug/debug.h"
 enum {  ////errorcodes
-        error_unexpected_eof=-1,
-        error_unknown_filelength=-2,
-        error_zerolength_file=-3,
-        error_vinfo_not_in_xmldecl=-4,
-        internal_error_wrong_argument_type=-5,
-        error_comment_doubleminus=-6,
-        error_illegal_char=-7,
-        error_malformed_name=-8,
-        error_unexpected_docdecl=-9
+        error_unexpected_eof                =-1,
+        error_unknown_filelength            =-2,
+        error_zerolength_file               =-3,
+        error_vinfo_not_in_xmldecl          =-4,
+        internal_error_wrong_argument_type  =-5,
+        error_comment_doubleminus           =-6,
+        error_illegal_char                  =-7,
+        error_malformed_name                =-8,
+        error_unexpected_docdecl            =-9
 };
 
 int match_xmldecl(struct DynamicList* xmlFileDyn,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResults);

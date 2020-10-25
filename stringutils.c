@@ -4,42 +4,6 @@
 #include <string.h>     //for memcpy
 #include <math.h>       //for pow
 #include <debug/debug.h>
-//Helper functions to analyze xml file and convert utf format
-/*
-readme
-You create a char match list fist, if you want to match it to all characters between 'a' and 'b' aswell as between 'd' and 'z':
-struct DynamicList* ExampleCharMatchList1=createCharMatchList(4,'a','b','d','z');
-Use this to match only to the char 'a':
-struct DynamicList* ExampleCharMatchList2=createCharMatchList(2,'a','a');
-
-You can combine multiple CharMatchLists into a wordMatchList
-struct DynamicList* ExampleWordMatchList=createWordMatchList(2,ExampleCharMatchList1,ExampleCharMatchList2);
-
-and those wordMatchLists can be combined into MultiWordMatchLists which try to find multiple words simultaneousely.
-For each position in the document it starts with the first entry in the MultiWordMatchList and checks if that one matches, if not it tries the second word and so on.
-If there is not match for a given position it will increment the position by one and start again with the first WordMatchList.
-
-Another possibility is to combine charMatchLists into MultiCharMatchLists which will be useful to find out if a char matches to ('a' to 'b', 'c' to 'z') or ('0' to '9')
-
-All types can be passed to uint32_t getOffsetUntil(uint32_t* xmlInUtf32, uint32_t maxScanLength, struct DynamicList* MatchAgainst, uint32_t* optional_matchIndex);
-It will return the offset of a match or if there is non the maxScanLength. The optional_matchIndex is useful for MultiWordMatchLists and MultiCharMatchLists to find out which one of the entries caused the match.
-
-After that they should be freed with deleteDynList(uppermostListPointer); .
-
-Warning! do not create intermediate objects, rather nest the ListTypes create functions like so:
-createMultiCharMatchList(2,
-    createCharMatchList(4,'a','b','d','z'),
-    createCharMatchList(2,'0','9')
-);
-because otherwise the intermediate object's pointers will be invalid when you free the MultiCharMatchList.
-*/
-
-
-
-
-//type id is only requiered if the list has not been created yet
-//only compatible with pointer type lists!!!!!!
-
 
 void append_DynamicList(struct DynamicList** ListOrNullpp,void* newElementp,size_t sizeofListElements,uint32_t typeId){      //Destroys old pointer and returns new pointer, user needs to update all pointers referring to this object
     if(!ListOrNullpp){

@@ -7,7 +7,7 @@
 struct xmlTreeElement;
 struct key_val_pair;
 
-enum {  dynlisttype_utf32chars,         //items of type uint32_t (utf32 characters not null terminated)
+enum {  dynlisttype_utf32chars,          //items of type uint32_t (utf32 characters not null terminated)
         dynlisttype_keyValuePairsp,      //items of type struct key_val_pait*
         dynlisttype_xmlELMNTCollectionp, //items of type struct xmlTreeElement*
 
@@ -37,11 +37,13 @@ struct DynamicList* createCharMatchList(uint32_t argumentCount,...);
 struct DynamicList* createWordMatchList(uint32_t argumentCount,...);
 struct DynamicList* createMultiWordMatchList(uint32_t argumentCount,...);
 struct DynamicList* createMultiCharMatchList(uint32_t argumentCount,...);
-void delete_DynList(struct DynamicList* DynListPtr);
+void                delete_DynList(struct DynamicList* DynListPtr);
+
 uint32_t utf8_to_utf32(uint8_t* inputString, uint32_t numberOfUTF8Chars, uint32_t* outputString);
-size_t utf16_to_utf32(uint16_t* inputString, size_t numberOfUTF16Chars, uint32_t* outputString);
-size_t utf32_cut_ASCII(uint32_t* inputString, uint32_t numberOfUTF32Chars, char* outputStringNullTer);
+size_t   utf16_to_utf32(uint16_t* inputString, size_t numberOfUTF16Chars, uint32_t* outputString);
+size_t   utf32_cut_ASCII(uint32_t* inputString, uint32_t numberOfUTF32Chars, char* outputStringNullTer);
 uint32_t utf32_to_utf8(uint32_t* inputString, uint32_t numberOfUTF32Chars,uint8_t* outputString);
+
 uint32_t getOffsetUntil(uint32_t* fileInUtf32, uint32_t maxScanLength, struct DynamicList* MatchAgainst, uint32_t* optional_matchIndex);
 
 struct DynamicList* getValueFromKeyName(struct DynamicList* attlist,struct DynamicList* nameDl);
@@ -52,6 +54,6 @@ struct DynamicList* getSubelementsWithName(struct DynamicList* name,struct xmlTr
 struct DynamicList* utf32dynlist_to_floats(struct DynamicList* NumberSeperatorp,struct DynamicList* OrderOfMagp, struct DynamicList* DecimalSeperatorp,struct DynamicList* utf32StringInp);
 struct DynamicList* utf32dynlist_to_doubles(struct DynamicList* NumberSeperatorp,struct DynamicList* OrderOfMagp, struct DynamicList* DecimalSeperatorp,struct DynamicList* utf32StringInp);
 struct DynamicList* utf32dynlist_to_ints(struct DynamicList* NumberSeperatorp,struct DynamicList* utf32StringInp);
-char* utf32dynlist_to_string(struct DynamicList* utf32dynlist);
+char*               utf32dynlist_to_string(struct DynamicList* utf32dynlist);
 
 #endif // STRINGUTILS_H_INCLUDED

@@ -2,9 +2,9 @@
 #define XMLREADER_H_INCLUDED
 #include <stdio.h>
 #include <xmlReader/stringutils.h>
-struct xmlTreeElement{              //must be before function definition
+struct xmlTreeElement{
     uint32_t type;                  //can be comment, pi, normal_tag or cdata
-    struct DynamicList* name;       //is Name of tag or piTarget
+    struct DynamicList* name;       //is name of tag or piTarget
     struct xmlTreeElement* parent;
     struct DynamicList* content;    //NULL or content in list form like utf32,or multiple elements
     struct DynamicList* attributes; //NULL or list of key,value pairs
@@ -16,10 +16,10 @@ struct key_val_pair{
 };
 
 enum {
-    xmltype_comment=0x42,//Comment
-    xmltype_pi=0x43,    //Processing instruction
-    xmltype_tag=0x44,   //subtag
-    xmltype_cdata=0x45, //or text
+    xmltype_comment = 0x42, //comment
+    xmltype_pi      = 0x43, //processing instruction
+    xmltype_tag     = 0x44, //subtag
+    xmltype_cdata   = 0x45, //text not processed by parser
 };
 
 
