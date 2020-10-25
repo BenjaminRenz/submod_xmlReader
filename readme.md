@@ -113,3 +113,41 @@ struct DynamicList xmlElementCollection
 |__struct xmlTreeElement* = lastElementInXmlFile;
 ```
 
+## internal functionality ##
+### match lists ###
+#### WARNING ####
+DO NOT USE ANY DYNAMIC LIST MORE THAN ONCE INSIDE OTHERS (MultiChar-, Word- and MultiWord-MatchLists).
+
+It should be noted that if you nest lists like multiple CharMatchLists into e.g. WordMatchLists, you should NOT get pointers to the CharMatchLists. The reason for this is that it might be tempting to reuse a CharMatchList inside another WordMatchList. But when you delete one of the WordMatchLists all child lists are delted, so the second WordMatchList would have a dangling pointer. If you free both WordMatchLists you would also execute a double free on the duplicated CharMatchList which is undefined behavior. Please directly nest the creation of these lists and don't copy any pointers, if you are not absolutely sure what you are doing.
+
+#### allowed nesting hirarchy the lists ####
+```
+CharMatchList --(multiple can be nested in)--> MultiCharMatchList
+              |
+              --(multiple can be nested in)--> WordMatchList --(multiple can be nested in)--> MultiWordMatchList
+```
+#### enum for match identification ####
+because functions like `uint32_t getOffsetUntil(uint32_t* xmlInUtf32, uint32_t maxScanLength, struct DynamicList* MatchAgainst, uint32_t* optional_matchIndex);` will return you an index which corresponds to the sublist which has matched, depending on the order in which they have been initialized. Therefore it is useful to track the order of initialization of MultiChar-, Word- and MultiWord-MatchLists. For the MultiCharMatchList one example would be the enum
+```
+enum CML1_res_idx{res_letter=0, res_number=1};
+```
+#### create a char match list ####
+to create such a list which matches all characters between 'a' and 'b', aswell as 'd' and 'z' you have to:
+```
+struct DynamicList* ExampleCharMatchList1=createCharMatchList(4,'a','b','d','z');
+```
+to only match one character, for example 'a':
+```
+struct DynamicList* ExampleCharMatchList2=createCharMatchList(2,'a','a');
+```
+
+#### multi char match lists ####
+to destinguish different groups of characters, like numbers and letters, you can create MultiCharMatchLists:
+```
+struct DynamicList* ExampleCharMatchList1=createMultiCharMatchList(2,
+    createCharMatchList(4,'a','z','A','Z'),
+    createCharMatchList(2,'0','9')
+);
+```
+#### ####
+```
