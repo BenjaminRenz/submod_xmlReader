@@ -11,7 +11,7 @@ fclose(xmlFileP);
 ### get value to one key of an attributes of one xml element ###
 ```
 struct xmlTreeElement* firstChild=getNthSubelement(xmlRootP,0);
-struct dynamicList* attrOfFirstChild=firstChild->attributes;
+struct DynamicList* attrOfFirstChild=firstChild->attributes;
 struct DynamicList* valueUTF32Listp=getValueFromKeyName(attrOfFirstChild,stringToUTF32Dynlist("key"));
 ```
 
@@ -23,7 +23,10 @@ float firstFloatInList=((float*)(floatListp->items))[0];
 ```
 
 ### delete one attribute of an xml element ###
-
+Work in progress
+```
+deleteNthAttribute()
+```
 
 ### initialize and add a new xml element as a child to an existing parent element ###
 ```
