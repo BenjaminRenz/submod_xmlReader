@@ -3,8 +3,8 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include <string.h> //for memcopy
-#include "xmlReader/xmlReader.h"
-#include "debug/debug.h"
+#include "xmlReader.h"
+#include "debug.h"
 enum {  ////errorcodes
         error_unexpected_eof                =-1,
         error_unknown_filelength            =-2,
@@ -70,16 +70,16 @@ struct DynamicList* attlist_start_w_match=createWordMatchList(9,
 );
 */
 struct xmlTreeElement* getNthSubelement(struct xmlTreeElement parent, uint32_t n){
-    if(parentP.content==0){
+    if(parent.content==0){
         return 0;
     }
-    if(parentP.content->type!=dynlisttype_xmlELMNTCollectionp){
+    if(parent.content->type!=dynlisttype_xmlELMNTCollectionp){
         return 0;
     }
-    if(parentP.content->itemcnt<=n){
+    if(parent.content->itemcnt<=n){
         return 0;   //not enough subelements
     }
-    return ((struct xmlTreeElement**)(parentP.content->items))[n]
+    return ((struct xmlTreeElement**)(parent.content->items))[n];
 }
 
 

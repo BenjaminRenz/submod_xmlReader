@@ -1,9 +1,9 @@
-#include <xmlReader/stringutils.h>
-#include <xmlReader/xmlReader.h>
+#include "stringutils.h"
+#include "xmlReader.h"
 #include <stdlib.h>     //for malloc
 #include <string.h>     //for memcpy
 #include <math.h>       //for pow
-#include <debug/debug.h>
+#include <debug.h>
 
 void append_DynamicList(struct DynamicList** ListOrNullpp,void* newElementp,size_t sizeofListElements,uint32_t typeId){      //Destroys old pointer and returns new pointer, user needs to update all pointers referring to this object
     if(!ListOrNullpp){
