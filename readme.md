@@ -8,11 +8,25 @@ readXML(xmlFileP,&xmlRootP);
 fclose(xmlFileP);
 ```
 
-### get attributes of one xml element ###
+### get value to one key of an attributes of one xml element ###
+```
+struct xmlTreeElement* firstChild=getNthSubelement(xmlRootP,0);
+struct DynamicList* attrOfFirstChild=firstChild->attributes;
+struct DynamicList* valueUTF32Listp=getValueFromKeyName(attrOfFirstChild,stringToUTF32Dynlist("key"));
+```
 
 ### parse attributes as list of floats ###
+```
+struct DynamicList* floatUTF32Listp=getValueFromKeyName(attrOfFirstChild,stringToUTF32Dynlist("floats"));
+struct DynamicList* floatListp=utf32dynlist_to_floats(createCharMatchList(2,' ',' '),createCharMatchList(2,'e','e'),createCharMatchList(4,',',',','.','.'),floatUTF32Listp);
+float firstFloatInList=((float*)(floatListp->items))[0];
+```
 
 ### delete one attribute of an xml element ###
+Work in progress
+```
+deleteNthAttribute()
+```
 
 ### initialize and add a new xml element as a child to an existing parent element ###
 ```
