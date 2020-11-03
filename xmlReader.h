@@ -27,6 +27,8 @@ enum {
 int readXML(FILE* xmlFile,struct xmlTreeElement** returnDocumentRoot);
 int writeXML(FILE* xmlOutFile,struct xmlTreeElement* inputDocumentRoot);
 
+struct xmlTreeElement* getNthSubelement(struct xmlTreeElement* parentP, uint32_t n);
+void deleteNthAttribute(struct DynamicList* DynListP);
 void delete_DynList(struct DynamicList* DynListPtr);
 void append_DynamicList(struct DynamicList** ListOrNullPtr,void* newElement,size_t sizeofListElements,uint32_t typeId);
 uint32_t compareEqualDynamicUTF32List(struct DynamicList* List1UTF32,struct DynamicList* List2UTF32);

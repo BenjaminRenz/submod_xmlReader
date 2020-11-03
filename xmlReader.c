@@ -69,6 +69,19 @@ struct DynamicList* attlist_start_w_match=createWordMatchList(9,
     createCharMatchList(2,'T','T')
 );
 */
+struct xmlTreeElement* getNthSubelement(struct xmlTreeElement parent, uint32_t n){
+    if(parentP.content==0){
+        return 0;
+    }
+    if(parentP.content->type!=dynlisttype_xmlELMNTCollectionp){
+        return 0;
+    }
+    if(parentP.content->itemcnt<=n){
+        return 0;   //not enough subelements
+    }
+    return ((struct xmlTreeElement**)(parentP.content->items))[n]
+}
+
 
 void printUTF32Dynlist(struct DynamicList* inList){
     if(inList->type!=dynlisttype_utf32chars){
