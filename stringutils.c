@@ -248,123 +248,159 @@ size_t utf32CutASCII(uint32_t* inputString, uint32_t numberOfUTF32Chars, char* o
 }
 
 
-
-
-/** \brief finds the offset to the first occurence of word(s) or character(s)
- *
- * \param inputfile pointer to file in utf32
- * \param how many characters the function is allowed to scan into the inputfile
- * \param Pointer to word/character list to match againt
- * \param if not null will return the offset in the struct DynamicList for wordS and characterS to know which one matched
- * \return offset of the first position of the word or offset to the character from the start of the inputfile in utf32 characters (4bytes)
- *
- */
-
-
-uint32_t getOffsetUntil_freeArg3(uint32_t* fileInUtf32, uint32_t maxScanLength, struct DynamicList* MatchAgainst, uint32_t* optional_matchIndex){
-    uint32_t offset=getOffsetUntil(fileInUtf32,maxScanLength,MatchAgainst,optional_matchIndex);
-    DlDelete(MatchAgainst);
-    return offset;
+//returns mach index or -1 if skipped or not found
+uint32_t MatchAndIncrement(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP, struct DynamicList* breakIfMatchDlP, struct DynamicList* skipIfMatchDlP){
+    uint32_t matchIdx=Match(StringInUtf32DlP,InOutIndexP,breakIfMatchDlP,skipIfMatchDlP);
+    if(matchIdx<0){
+        return matchIdx;
+    }
+    if(breakIfMatchDlP->type==ListType_CharMatch||breakIfMatchDlP->type==ListType_MultiCharMatchp){ //shift by one character
+        (*InOutIndexP)++;
+        return matchIdx;
+    }
+    if(breakIfMatchDlP->type==ListType_WordMatchp){     //shift by number or characters
+        (*InOutIndexP)+=breakIfMatchDlP->itemcnt;
+        return matchIdx;
+    }
+    if(breakIfMatchDlP->type==ListType_MultiWordMatchp){    //check which word matched and shift by number or characters
+        struct DynamicList* MatchingWMDlP=((struct DynamicList**)breakIfMatchDlP->items)[matchIdx];
+        (*InOutIndexP)+=MatchingWMDlP->itemcnt;
+        return matchIdx;
+    }
 }
 
-//TODO urgent: avoid that word match scans so far into the file, that the word offset itself goes past the file
-uint32_t getOffsetUntil(uint32_t* fileInUtf32, uint32_t maxScanLength, struct DynamicList* MatchAgainst, uint32_t* optional_matchIndex){
-    switch(MatchAgainst->type){
-        case ListType_MultiCharMatchp:
-            for(uint32_t sPosOffset=0;sPosOffset<maxScanLength;sPosOffset++){
-                for(uint32_t matchMultiCharArrayPos=0;matchMultiCharArrayPos<(MatchAgainst->itemcnt);matchMultiCharArrayPos++){
-                    struct DynamicList* CharMatch=(((struct DynamicList**)MatchAgainst->items)[matchMultiCharArrayPos]);
-                    for(uint32_t matchCharArrayPos=0;matchCharArrayPos<(CharMatch->itemcnt);matchCharArrayPos+=2){
-                        if((((uint32_t*)CharMatch->items)[matchCharArrayPos]<=fileInUtf32[sPosOffset]) && (((uint32_t*)CharMatch->items)[matchCharArrayPos+1]>=fileInUtf32[sPosOffset])){
-                            if(optional_matchIndex){
-                                (*optional_matchIndex)=matchMultiCharArrayPos;
-                            }
-                            return sPosOffset;
-                        }
-                    }
+int MatchCharRange(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP,struct DynamicList* CMDlP){
+    for(uint32_t CMidx=0;CMidx<CMDlP->itemcnt;CMidx+=2){
+        if((((uint32_t*)CMDlP->items)[CMidx]  <=((uint32_t*)StringInUtf32DlP->items)[*InOutIndexP]) &&
+           (((uint32_t*)CMDlP->items)[CMidx+1]>=((uint32_t*)StringInUtf32DlP->items)[*InOutIndexP])){
+            return CMidx;
+        }
+    }
+    return -1;
+}
+
+//returns index inside the breakIfMatch List or -1 when no match occurs
+//TODO remember value of InOutIndexP if there is no match write it back
+uint32_t Match(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP, struct DynamicList* breakIfMatchDlP, struct DynamicList* skipIfMatchDlP){
+    if(StringInUtf32DlP->type!=dynlisttype_utf32chars){
+        dprintf(DBGT_ERROR,"Not a valid utf32 file");
+    }
+    int MatchIdxSkip=0;
+    while(MatchIdxSkip>=0){
+        //check if breakIfMatch has any match
+        switch(breakIfMatchDlP->type){
+            int ret;
+            case ListType_CharMatch:
+                if(((*InOutIndexP)<StringInUtf32DlP->itemcnt) && (ret=MatchCharRange(StringInUtf32DlP,InOutIndexP,breakIfMatchDlP)>-1)){
+                    return ret;
                 }
-            }
-            return maxScanLength;
-        break;
-        case ListType_CharMatch:
-            for(uint32_t sPosOffset=0;sPosOffset<maxScanLength;sPosOffset++){
-                for(uint32_t matchCharArrayPos=0;matchCharArrayPos<(MatchAgainst->itemcnt);matchCharArrayPos+=2){
-                    if((((uint32_t*)MatchAgainst->items)[matchCharArrayPos]<=fileInUtf32[sPosOffset]) && (((uint32_t*)MatchAgainst->items)[matchCharArrayPos+1]>=fileInUtf32[sPosOffset])){
-                        return sPosOffset;
-                    }
-                }
-            }
-            return maxScanLength; //no match found
-        break;
-        case ListType_WordMatchp: //multiple CharMatch lists
-            for(uint32_t sPosOffset=0;sPosOffset<=(maxScanLength-(MatchAgainst->itemcnt));sPosOffset++){
-                uint32_t wordPosOffset=0;
-                for(;wordPosOffset<MatchAgainst->itemcnt;wordPosOffset++){
-                    struct DynamicList* CharMatch=(((struct DynamicList**)MatchAgainst->items)[wordPosOffset]);
-                    if(CharMatch->type!=ListType_CharMatch){
-                        return UINT32_MAX;//type error
-                    }
-                    uint32_t MatchingRangeFlag=0;//TODO use KMP-algorithm instead (faster if multiple close matches)
-                    for(uint32_t matchCharArrayPos=0;matchCharArrayPos<(CharMatch->itemcnt);matchCharArrayPos+=2){
-                        if((((uint32_t*)CharMatch->items)[matchCharArrayPos]<=fileInUtf32[sPosOffset+wordPosOffset]) && (((uint32_t*)CharMatch->items)[matchCharArrayPos+1]>=fileInUtf32[sPosOffset+wordPosOffset])){
-                            MatchingRangeFlag=1; //if this character range did match set matchflag
-                        }
-                    }
-                    if(!MatchingRangeFlag){
-                        break; //as soon as we get a mismatch ignore the rest of the word and restart from the next position
-                    }
-                }
-                if(wordPosOffset==(MatchAgainst->itemcnt)){ //all characters matched, we have found the word at the position
-                    return sPosOffset; //return the index of the first character of the matching word
-                }
-            }
-            return maxScanLength; //no match found
             break;
-        case ListType_MultiWordMatchp:{
-            uint32_t sPosOffset=0;
-            for(;sPosOffset<maxScanLength;sPosOffset++){
-                uint32_t wordIndex=0;
-                for(;wordIndex<MatchAgainst->itemcnt;wordIndex++){
-                    struct DynamicList* WordMatch=((struct DynamicList**)MatchAgainst->items)[wordIndex];
-                    uint32_t wordPosOffset=0;
-                    for(;wordPosOffset<WordMatch->itemcnt;wordPosOffset++){
-                        if(wordPosOffset+sPosOffset>maxScanLength){
-                            break; //word is extending beyond the scan area
-                        }
-                        struct DynamicList* CharMatch=((struct DynamicList**)WordMatch->items)[wordPosOffset];
-                        uint32_t MatchingRangeFlag=0;
-                        for(uint32_t matchCharArrayPos=0;matchCharArrayPos<(CharMatch->itemcnt);matchCharArrayPos+=2){
-                            if((((uint32_t*)CharMatch->items)[matchCharArrayPos]<=fileInUtf32[sPosOffset+wordPosOffset]) && (((uint32_t*)CharMatch->items)[matchCharArrayPos+1]>=fileInUtf32[sPosOffset+wordPosOffset])){
-                                MatchingRangeFlag=1;
-                            }
-                        }
-                        if(!MatchingRangeFlag){ //abort further search on one mismatched char
+            case ListType_MultiCharMatchp:
+                for(uint32_t MCMidx=0;MCMidx<(breakIfMatchDlP->itemcnt);MCMidx++){        //iterate over sub char match lists
+                    struct DynamicList* CMDlP=(((struct DynamicList**)breakIfMatchDlP->items)[MCMidx]);  //get char match list
+                    if((*InOutIndexP)<StringInUtf32DlP->itemcnt && (ret=MatchCharRange(StringInUtf32DlP,InOutIndexP,CMDlP)>-1)){
+                        return ret;
+                    }
+                }
+            break;
+            case ListType_WordMatchp:
+                if((*InOutIndexP)+breakIfMatchDlP->itemcnt<StringInUtf32DlP->itemcnt){ //check that the string was not overshot
+                    for(uint32_t WMidx=0;WMidx<breakIfMatchDlP->itemcnt;WMidx++){
+                        struct DynamicList* CMDlP=(((struct DynamicList**)breakIfMatchDlP->items)[WMidx]);
+                        if(1+MatchCharRange(StringInUtf32DlP,InOutIndexP,CMDlP)){
+                            if(WMidx==breakIfMatchDlP->itemcnt-1){return 0;} //if we reached the end of the word
+                        }else{
                             break;
                         }
                     }
-                    if(wordPosOffset==WordMatch->itemcnt){ //the whole word matches (the inner loop did not terminate prematurely, full word scanned)
-                        break;
-                    }
                 }
-                if(wordIndex!=MatchAgainst->itemcnt){ //we got a match from the inner loop (the inner loop did terminate prematurely, word at wordIndex matched)
-                    if(optional_matchIndex){
-                        (*optional_matchIndex)=wordIndex;
-                    }
-                    return sPosOffset;
-                }
-            }
-            if(sPosOffset==maxScanLength){ //nothing found, reached end of assigned scan range
-                    return maxScanLength;
-                }
-        }
-        break;
-
-        default:
-            printf("ERROR: Wrong list type for getOffsetUntil!\n");
-            return UINT32_MAX;//type error
             break;
+            case ListType_MultiWordMatchp:
+                for(uint32_t MWMidx=0;MWMidx<(breakIfMatchDlP->itemcnt);MWMidx++){        //iterate over sub word match lists
+                    struct DynamicList* WMDlP=(((struct DynamicList**)breakIfMatchDlP->items)[MWMidx]);  //get char match list
+                    if((*InOutIndexP)+WMDlP->itemcnt<StringInUtf32DlP->itemcnt){ //check that the string was not overshot
+                        for(uint32_t WMidx=0;WMidx<WMDlP->itemcnt;WMidx++){
+                            struct DynamicList* CMDlP=(((struct DynamicList**)WMDlP->items)[WMidx]);
+                            if(1+MatchCharRange(StringInUtf32DlP,InOutIndexP,CMDlP)){
+                                if(WMidx==WMDlP->itemcnt-1){return MWMidx;} //if we reached the end of the word
+                            }else{
+                                break;
+                            }
+                        }
+                    }
+                }
+            break;
+            default:
+                dprintf(DBGT_ERROR,"Wrong dynlist type");
+                return -1;
+            break;
+        }
+
+        //check if we are allowed to move the global offset
+        if(skipIfMatchDlP){
+            MatchIdxSkip=-1;
+            switch(skipIfMatchDlP->type){
+                case ListType_CharMatch:
+                    if((*InOutIndexP)<StringInUtf32DlP->itemcnt){
+                        MatchIdxSkip=MatchCharRange(StringInUtf32DlP,InOutIndexP,skipIfMatchDlP);
+                    }
+                break;
+                case ListType_MultiCharMatchp:
+                    for(uint32_t MCMidx=0;MCMidx<(skipIfMatchDlP->itemcnt);MCMidx++){        //iterate over sub char match lists
+                        struct DynamicList* CMDlP=(((struct DynamicList**)skipIfMatchDlP->items)[MCMidx]);  //get char match list
+                        if((*InOutIndexP)<StringInUtf32DlP->itemcnt){
+                            MatchIdxSkip=MatchCharRange(StringInUtf32DlP,InOutIndexP,CMDlP);
+                        }
+                    }
+                break;
+                case ListType_WordMatchp:
+                    if((*InOutIndexP)+skipIfMatchDlP->itemcnt<StringInUtf32DlP->itemcnt){ //check that the string was not overshot
+                        for(uint32_t WMidx=0;WMidx<skipIfMatchDlP->itemcnt;WMidx++){
+                            struct DynamicList* CMDlP=(((struct DynamicList**)skipIfMatchDlP->items)[WMidx]);
+                            if(1+MatchCharRange(StringInUtf32DlP,InOutIndexP,CMDlP)){
+                                if(WMidx==skipIfMatchDlP->itemcnt-1){MatchIdxSkip=0;} //if we reached the end of the word
+                            }else{
+                                break;
+                            }
+                        }
+                    }
+                break;
+                case ListType_MultiWordMatchp:
+                    for(uint32_t MWMidx=0;MWMidx<(skipIfMatchDlP->itemcnt);MWMidx++){        //iterate over sub word match lists
+                    struct DynamicList* WMDlP=(((struct DynamicList**)skipIfMatchDlP->items)[MWMidx]);  //get char match list
+                    if((*InOutIndexP)+WMDlP->itemcnt<StringInUtf32DlP->itemcnt){ //check that the string was not overshot
+                        for(uint32_t WMidx=0;WMidx<WMDlP->itemcnt;WMidx++){
+                            struct DynamicList* CMDlP=(((struct DynamicList**)WMDlP->items)[WMidx]);
+                            if(1+MatchCharRange(StringInUtf32DlP,InOutIndexP,CMDlP)){
+                                if(WMidx==WMDlP->itemcnt-1){MatchIdxSkip=MWMidx;} //if we reached the end of the word
+                            }else{
+                                break;
+                            }
+                        }
+                    }
+                }
+                break;
+                default:
+                    dprintf(DBGT_ERROR,"Invalid list type");
+                break;
+            }
+        }else{//no allowed characters specified for skip, so no match
+            return -1;
+        }
+        if(MatchIdxSkip>=0){
+            if(skipIfMatchDlP->type==ListType_CharMatch||skipIfMatchDlP->type==ListType_MultiCharMatchp){ //shift by one character
+                (*InOutIndexP)++;
+            }else if(skipIfMatchDlP->type==ListType_MultiWordMatchp){    //check which word matched and shift by number or characters
+                struct DynamicList* MatchingWMDlP=((struct DynamicList**)skipIfMatchDlP->items)[MatchIdxSkip];
+                (*InOutIndexP)+=MatchingWMDlP->itemcnt;
+            }else if(skipIfMatchDlP->type==ListType_WordMatchp){     //shift by number or characters
+                (*InOutIndexP)+=skipIfMatchDlP->itemcnt;
+            }else{
+                dprintf(DBGT_ERROR,"Invalid list type");
+            }
+        }
     }
-    return 0;
+    return -1;
 }
 
 struct xmlTreeElement* getNthSubelement(struct xmlTreeElement* parentP, uint32_t n){

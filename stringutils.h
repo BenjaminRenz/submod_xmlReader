@@ -63,8 +63,8 @@ size_t   utf32CutASCII  (uint32_t* inputString, uint32_t numberOfUTF32Chars, cha
 uint32_t utf32ToUtf8    (uint32_t* inputString, uint32_t numberOfUTF32Chars,uint8_t* outputString);
 
 
-uint32_t getOffsetUntil         (uint32_t* fileInUtf32, uint32_t maxScanLength, struct DynamicList* MatchAgainst, uint32_t* optional_matchIndex);
 uint32_t getOffsetUntil_freeArg3(uint32_t* fileInUtf32, uint32_t maxScanLength, struct DynamicList* MatchAgainst, uint32_t* optional_matchIndex);
+uint32_t Match(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP, struct DynamicList* breakIfMatchDlP, struct DynamicList* skipIfMatchDlP);
 
 
 //xml functions

@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <string.h> //for memcopy
 #include "xmlReader.h"
+#include "xmlReader_matchHelper.h"
 #include "debug.h"
 enum {  ////errorcodes
         error_unexpected_eof                =-1,
@@ -40,36 +41,7 @@ createWordMatchList(2,                      //STag
     createCharMatchList(2,'<','<'),
     createCharMatchList(32,':',':', 'A','Z', '_','_', 'a','z', 0xc0,0xd6, 0xd8,0xf6, 0xf8,0x2ff, 0x370,0x37d, 0x37f,0x1fff, 0x200c,0x200d, 0x2070,0x218F, 0x2c00,0x2fef, 0x3001,0xd7ff, 0xf900,0xfdcf, 0xfdf0,0xfffd, 0x10000,0xeffff)
 ),
-
-struct DynamicList* w_match_cdata_start=createWordMatchList(9,
-    createCharMatchList(2,'<','<'),
-    createCharMatchList(2,'!','!'),
-    createCharMatchList(2,'[','['),
-    createCharMatchList(2,'C','C'),
-    createCharMatchList(2,'D','D'),
-    createCharMatchList(2,'A','A'),
-    createCharMatchList(2,'T','T'),
-    createCharMatchList(2,'A','A'),
-    createCharMatchList(2,'[','[')
-);
-struct DynamicList* w_match_cdata_end=createWordMatchList(3,
-    createCharMatchList(2,']',']'),
-    createCharMatchList(2,']',']'),
-    createCharMatchList(2,'>','>')
-);
-struct DynamicList* attlist_start_w_match=createWordMatchList(9,
-    createCharMatchList(2,'<','<'),
-    createCharMatchList(2,'!','!'),
-    createCharMatchList(2,'A','A'),
-    createCharMatchList(2,'T','T'),
-    createCharMatchList(2,'T','T'),
-    createCharMatchList(2,'L','L'),
-    createCharMatchList(2,'I','I'),
-    createCharMatchList(2,'S','S'),
-    createCharMatchList(2,'T','T')
-);
 */
-
 
 
 void xmlMatchAndMoveOffset(struct DynamicList* xmlFileDyn,uint32_t* offsetInXmlFilep,struct DynamicList* matchObj,uint32_t* matchIndexp){
@@ -81,7 +53,15 @@ void xmlMatchAndMoveOffset(struct DynamicList* xmlFileDyn,uint32_t* offsetInXmlF
 }
 
 
-
+//TODO
+/*
+-first check for XMLDecl, DoctypeDoctypedecl, Element or Misc (Pi,Comment...)
+-depending on whitespace check what the offset in the document was when XMLDecl was found, if it is >0 error, because XMLDecl can not be preceeded by any Misc characters
+-if Element is found skip next step
+-check for DoctypeDoctypedecl, Element or Misc
+-if if Misc is found repeat last step
+-check for Element or Misc
+*/
 
 int readXML(FILE* xmlFile,struct xmlTreeElement** returnDocumentRootpp){
     //Preprocess
@@ -105,15 +85,16 @@ int readXML(FILE* xmlFile,struct xmlTreeElement** returnDocumentRootpp){
     memcpy(xmlFileDyn->items,utf32Buffer,sizeof(uint32_t)*numOfCharsUTF32);
     free(utf32Buffer);
     uint32_t offsetInXMLfile=0;
-    uint32_t* offsetInXMLfilep=&offsetInXMLfile;
     //create document root
     struct xmlTreeElement* rootDocumentElementp=(struct xmlTreeElement*)malloc(sizeof(struct xmlTreeElement));
     //very important because otherwise append_dynamiclist could realloc on uninitialized location
     rootDocumentElementp->parent=0;
-    rootDocumentElementp->name=0;
+    rootDocumentElementp->name=DlCreate(sizeof(uint32_t),0,dynlisttype_utf32chars);
     rootDocumentElementp->type=xmltype_tag;
-    rootDocumentElementp->content=0;
-    rootDocumentElementp->attributes=0;
+    rootDocumentElementp->content=DlCreate(sizeof(uint32_t),0,dynlisttype_xmlELMNTCollectionp);
+    rootDocumentElementp->attributes=DlCreate(sizeof(struct key_val_pair*),0,dynlisttype_keyValuePairsp);
+    init_matchlists();  //initialize matchHelper
+    match_phase1(xmlFile,&offsetInXMLfile,rootDocumentElementp);
 
 
     //TODO preprocessing file
@@ -149,6 +130,33 @@ int readXML(FILE* xmlFile,struct xmlTreeElement** returnDocumentRootpp){
     dprintf(DBGT_INFO,"%p",(void*)rootDocumentElementp);
     (*returnDocumentRootpp)=rootDocumentElementp;
     return 0;
+}
+
+int match_phase1(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResults){
+    //if XMLDecl exists overwrite the root element with this
+    switch(Match(xmlFileDlP,offsetInXMLfilep,MWM_p1_start,CM_SpaceChar)){
+        case MWMres_p1_XMLDecl_start:
+            if((*offsetInXMLfilep)+1)
+        break;
+        case MWMres_p1_doctype_start:
+        break;
+        case MWMres_p1_pi_start:
+        break;
+        case MWMres_p1_comment_start:
+        break;
+        case: MWMres_p1_element_start:
+        break;
+        case: MWMres_p1_NonSpaceChar:
+            dprintf(DBGT_ERROR,"unexpected character found in xml, offset=%d",(*offsetInXMLfilep));
+        break;
+        case: MWMres_p1_IllegalChar:
+            dprintf(DBGT_ERROR,"Illegal character found in xml, offset=%d",(*offsetInXMLfilep));
+        break;
+    }
+}
+
+int parseNameAndAttrib(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResults){
+
 }
 
 int match_doctypedecl(struct DynamicList* xmlFileDyn,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResults){
@@ -934,13 +942,25 @@ int match_misc(struct DynamicList* xmlFileDyn,uint32_t* offsetInXMLfilep,struct 
 
 
 int writeXML(FILE* xmlOutFile,struct xmlTreeElement* inputDocumentRoot){
-#define charsPerDepth 4
+    struct DynamicList* utf32XmlDlP=xmlDOMtoUTF32(inputDocumentRoot,4);
+    uint8_t* datap=(uint8_t*)malloc(sizeof(uint8_t)*4*utf32XmlDlP->itemcnt);
+    uint32_t numUTF8Chars=utf32ToUtf8(utf32XmlDlP->items,utf32XmlDlP->itemcnt,datap);
+    #define blocksize 1
+    if(fwrite(datap,numUTF8Chars*sizeof(uint8_t),blocksize,xmlOutFile)==blocksize){
+        return 0;
+    }else{
+        printf("Error, could not write file\n");
+        return -1;
+    }
+}
+
+
+struct DynamicList* xmlDOMtoUTF32(struct xmlTreeElement* startingElement, int numSpacesIndent){
+    struct DynamicList* returnUtf32StringDlP=DlCreate(sizeof(uint32_t),0,dynlisttype_utf32chars);
     //TODO parse attributes of DocumentRoots, keep in mind newline is before start tag
-    uint32_t* tempUTF32String=0;
-    uint32_t numUTF32Chars=0;
-    struct xmlTreeElement* LastXMLTreeElement=inputDocumentRoot;
-    struct xmlTreeElement* CurrentXMLTreeElement=((struct xmlTreeElement**)inputDocumentRoot->content->items)[0];
-    uint32_t currentDepth=0;
+    struct xmlTreeElement* LastXMLTreeElement=startingElement->parent;
+    struct xmlTreeElement* CurrentXMLTreeElement=startingElement;
+    uint32_t currentDepth=0;        //for indentation
     uint32_t subindex=0;
     int writeOpeningTagToggle=1;
     do{
@@ -954,12 +974,12 @@ int writeXML(FILE* xmlOutFile,struct xmlTreeElement* inputDocumentRoot){
             if(writeOpeningTagToggle){//-------write start tag, attributes
                 //write start of start tag
                 //calculate space requirements
-                uint32_t requieredChars=1+charsPerDepth*currentDepth+1+(CurrentXMLTreeElement->name->itemcnt);//for 1*"\n", 1*"<", name
+                uint32_t requieredChars=1+numSpacesIndent*currentDepth+1+(CurrentXMLTreeElement->name->itemcnt);//for 1*"\n", 1*"<", name
                 //allocate storage
                 tempUTF32String=realloc(tempUTF32String,sizeof(uint32_t)*(numUTF32Chars+requieredChars));
                 //write changes
                 tempUTF32String[numUTF32Chars++]='\n';
-                for(uint32_t i=0;i<charsPerDepth*currentDepth;i++){
+                for(uint32_t i=0;i<numSpacesIndent*currentDepth;i++){
                     tempUTF32String[numUTF32Chars++]=' ';
                 }
                 tempUTF32String[numUTF32Chars++]='<';
@@ -1022,11 +1042,11 @@ int writeXML(FILE* xmlOutFile,struct xmlTreeElement* inputDocumentRoot){
             }else{
                 {//-------write closing tag
                     //calculate space requirements
-                    uint32_t requieredChars=1+charsPerDepth*currentDepth+1+1+(CurrentXMLTreeElement->name->itemcnt)+1;//for 1*"\n", 1*"<", 1*"/", name 1*">"
+                    uint32_t requieredChars=1+numSpacesIndent*currentDepth+1+1+(CurrentXMLTreeElement->name->itemcnt)+1;//for 1*"\n", 1*"<", 1*"/", name 1*">"
                     //allocate storage
                     tempUTF32String=realloc(tempUTF32String,sizeof(uint32_t)*(numUTF32Chars+requieredChars));
                     tempUTF32String[numUTF32Chars++]='\n';
-                    for(uint32_t i=0;i<charsPerDepth*currentDepth;i++){
+                    for(uint32_t i=0;i<numSpacesIndent*currentDepth;i++){
                         tempUTF32String[numUTF32Chars++]=' ';
                     }
                     tempUTF32String[numUTF32Chars++]='<';
@@ -1045,141 +1065,16 @@ int writeXML(FILE* xmlOutFile,struct xmlTreeElement* inputDocumentRoot){
         }
     }while((CurrentXMLTreeElement!=0)&&(CurrentXMLTreeElement!=inputDocumentRoot));     //Todo error with abort condition when starting from subelement
 
-    uint8_t* datap=(uint8_t*)malloc(sizeof(uint8_t)*4*numUTF32Chars);
-    uint32_t numUTF8Chars=utf32ToUtf8(tempUTF32String,numUTF32Chars,datap);
-    #define blocksize 1
-    if(fwrite(datap,numUTF8Chars*sizeof(uint8_t),blocksize,xmlOutFile)==blocksize){
-        return 0;
-    }else{
-        printf("Error, could not write file\n");
-        return -1;
-    }
+
 }
 
 //TODO does miss the upper layer of elements
 void printXMLsubelements(struct xmlTreeElement* xmlElement){
-#define charsPerDepth 4
-    //TODO parse attributes of DocumentRoots, keep in mind newline is before start tag
-    if(xmlElement->content->type==dynlisttype_utf32chars){
-        dprintf(DBGT_INFO,"Printing string instead of xml");
-        printUTF32Dynlist(xmlElement->content);
-        return;
-    }
-    if(xmlElement->content->type!=dynlisttype_xmlELMNTCollectionp){
-        dprintf(DBGT_ERROR,"invalid type");
-        return;
-    }
-    uint32_t* tempUTF32String=0;
-    uint32_t numUTF32Chars=0;
-    struct xmlTreeElement* LastXMLTreeElement=xmlElement;
-    struct xmlTreeElement* CurrentXMLTreeElement=((struct xmlTreeElement**)xmlElement->content->items)[0];
-    uint32_t currentDepth=0;
-    uint32_t subindex=0;
-    int writeOpeningTagToggle=1;
-    do{
-        uint32_t itemcnt;
-        if(CurrentXMLTreeElement->content==0){
-            itemcnt=0;
-        }else{
-            itemcnt=CurrentXMLTreeElement->content->itemcnt;
-        }
-        if(CurrentXMLTreeElement->parent==LastXMLTreeElement){      //walk deeper
-            if(writeOpeningTagToggle){//-------write start tag, attributes
-                //write start of start tag
-                //calculate space requirements
-                uint32_t requieredChars=1+charsPerDepth*currentDepth+1+(CurrentXMLTreeElement->name->itemcnt);//for 1*"\n", 1*"<", name
-                //allocate storage
-                tempUTF32String=realloc(tempUTF32String,sizeof(uint32_t)*(numUTF32Chars+requieredChars));
-                //write changes
-                tempUTF32String[numUTF32Chars++]='\n';
-                for(uint32_t i=0;i<charsPerDepth*currentDepth;i++){
-                    tempUTF32String[numUTF32Chars++]=' ';
-                }
-                tempUTF32String[numUTF32Chars++]='<';
-                memcpy(tempUTF32String+numUTF32Chars,CurrentXMLTreeElement->name->items,sizeof(uint32_t)*CurrentXMLTreeElement->name->itemcnt);
-                printf("name: %s\n",utf32dynlist_to_string(CurrentXMLTreeElement->name));
-                numUTF32Chars+=CurrentXMLTreeElement->name->itemcnt;
-                if(CurrentXMLTreeElement->attributes){      //check if element even has attributes
-                    for(uint32_t attributenum=0; attributenum<CurrentXMLTreeElement->attributes->itemcnt; attributenum++){
-                        struct DynamicList* KeyDynlistp=(((struct key_val_pair*)CurrentXMLTreeElement->attributes->items)[attributenum]).key;     //Problematic segfault
-                        struct DynamicList* ValDynlistp=(((struct key_val_pair*)CurrentXMLTreeElement->attributes->items)[attributenum]).value;
-                        //calculate space requirements
-                        printf("key: %s\n",utf32dynlist_to_string(KeyDynlistp));
-                        printf("val: %s\n",utf32dynlist_to_string(ValDynlistp));
-                        requieredChars=1+KeyDynlistp->itemcnt+1+1+ValDynlistp->itemcnt+1;        //for key, 1x" ", 1x"=", 1x"\"", value, 1x"\""
-                        //allocate storage
-                        tempUTF32String=realloc(tempUTF32String,sizeof(uint32_t)*(numUTF32Chars+requieredChars));
-                        tempUTF32String[numUTF32Chars++]=' ';
-                        //Write key
-                        memcpy(tempUTF32String+numUTF32Chars,KeyDynlistp->items,sizeof(uint32_t)*KeyDynlistp->itemcnt);
-                        numUTF32Chars+=KeyDynlistp->itemcnt;
-                        tempUTF32String[numUTF32Chars++]='=';
-                        tempUTF32String[numUTF32Chars++]='"';
-                        //Write value
-                        memcpy(tempUTF32String+numUTF32Chars,ValDynlistp->items,sizeof(uint32_t)*ValDynlistp->itemcnt);
-                        numUTF32Chars+=ValDynlistp->itemcnt;
-                        tempUTF32String[numUTF32Chars++]='"';
-                    }
-                }
-                if(itemcnt){            //we have some subtags
-                    tempUTF32String=realloc(tempUTF32String,sizeof(uint32_t)*(numUTF32Chars+1));
-                    tempUTF32String[numUTF32Chars++]='>';
-                }else{
-                    tempUTF32String=realloc(tempUTF32String,sizeof(uint32_t)*(numUTF32Chars+2));
-                    tempUTF32String[numUTF32Chars++]='/';
-                    tempUTF32String[numUTF32Chars++]='>';
-                }
-            }//-------write start tag, attributes end
-            writeOpeningTagToggle=1;
-            #define maxDepthTMP 100
-            for(;(subindex<itemcnt)&&(currentDepth<maxDepthTMP);subindex++){        //go over all subelements that are not to deeply nested
-                if(((struct xmlTreeElement**)CurrentXMLTreeElement->content->items)[subindex]->type==xmltype_tag){  //One valid subelement found
-                    LastXMLTreeElement=CurrentXMLTreeElement;
-                    CurrentXMLTreeElement=((struct xmlTreeElement**)CurrentXMLTreeElement->content->items)[subindex];
-                    subindex=0;
-                    currentDepth++;
-                    //TODO? This tests only elements of xmltype_tag
-                    break;
-                }else{
-                    //-------write Comments, Pi
-                    dprintf(DBGT_ERROR,"Non standard tag"); //like comment or other chardata
-                }
-            }
-        }else{      //go back upward
-            for(subindex=0;(subindex<itemcnt)&&(LastXMLTreeElement!=((struct xmlTreeElement**)CurrentXMLTreeElement->content->items)[subindex]);subindex++){     //go over all subelements of our parent and search ourself
-            }
-            currentDepth--;
-            if(++subindex<itemcnt){  //Do we have more elements in the current Element, (assume one more element, if this is more than the elements in our parent then we have scanned the last element)
-                LastXMLTreeElement=CurrentXMLTreeElement->parent;
-            }else{
-                {//-------write closing tag
-                    //calculate space requirements
-                    uint32_t requieredChars=1+charsPerDepth*currentDepth+1+1+(CurrentXMLTreeElement->name->itemcnt)+1;//for 1*"\n", 1*"<", 1*"/", name 1*">"
-                    //allocate storage
-                    tempUTF32String=realloc(tempUTF32String,sizeof(uint32_t)*(numUTF32Chars+requieredChars));
-                    tempUTF32String[numUTF32Chars++]='\n';
-                    for(uint32_t i=0;i<charsPerDepth*currentDepth;i++){
-                        tempUTF32String[numUTF32Chars++]=' ';
-                    }
-                    tempUTF32String[numUTF32Chars++]='<';
-                    tempUTF32String[numUTF32Chars++]='/';
-                    memcpy(tempUTF32String+numUTF32Chars,CurrentXMLTreeElement->name->items,sizeof(uint32_t)*CurrentXMLTreeElement->name->itemcnt);
-                    numUTF32Chars+=CurrentXMLTreeElement->name->itemcnt;
-                    tempUTF32String[numUTF32Chars++]='>';
-                }
-                subindex=itemcnt;    //a for loop would have set subindex to itemcnt in its last iteration -> further upward is true
-            }
-        }
-        if(subindex==itemcnt){//Turn around/further upward
-            writeOpeningTagToggle=0;
-            LastXMLTreeElement=CurrentXMLTreeElement;
-            CurrentXMLTreeElement=CurrentXMLTreeElement->parent;
-        }
-    }while((CurrentXMLTreeElement!=0)&&(CurrentXMLTreeElement!=xmlElement));     //Todo error with abort condition when starting from subelement
-    uint8_t* datap=(uint8_t*)malloc(sizeof(uint8_t)*(4*numUTF32Chars+1));
-    uint32_t numUTF8Chars=utf32ToUtf8(tempUTF32String,numUTF32Chars,datap);
+    struct DynamicList* utf32XmlDlP=xmlDOMtoUTF32(xmlElement,4);
+    uint8_t* utf8Xml=(uint8_t*)malloc(sizeof(uint8_t)*(4*utf32XmlDlP->itemcnt+1)); //for null term
+    uint32_t numUTF8Chars=utf32ToUtf8(utf32XmlDlP->items,utf32XmlDlP->itemcnt,utf8Xml);
     #define blocksize 1
-    datap[numUTF8Chars]='\0';
-    printf("%s\n",datap);
+    utf8Xml[numUTF8Chars]='\0';
+    printf("%s\n",utf8Xml);
 }
 
