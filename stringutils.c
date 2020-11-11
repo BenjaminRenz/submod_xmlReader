@@ -108,7 +108,15 @@ char* utf32dynlist_to_string(struct DynamicList* utf32dynlist){
     utf32CutASCII(utf32dynlist->items,utf32dynlist->itemcnt,outstring);
     return outstring;
 }
-
+/*
+void DlDeleteNonRecursive(struct DynamicList* DynListPtr){
+    if(!DynListPtr){
+        dprintf(DBGT_ERROR,"tried to free non existing DynList or subDynList");
+        return;
+    }
+    free(DynListPtr);
+}
+*/
 void DlDelete(struct DynamicList* DynListPtr){
     if(!DynListPtr){
         dprintf(DBGT_ERROR,"tried to free non existing DynList or subDynList");

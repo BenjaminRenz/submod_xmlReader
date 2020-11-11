@@ -95,54 +95,23 @@ int readXML(FILE* xmlFile,struct xmlTreeElement** returnDocumentRootpp){
     rootDocumentElementp->attributes=DlCreate(sizeof(struct key_val_pair*),0,dynlisttype_keyValuePairsp);
     init_matchlists();  //initialize matchHelper
     match_phase1(xmlFile,&offsetInXMLfile,rootDocumentElementp);
-
-
-    //TODO preprocessing file
-    //TODO normalize newlines
-    {//check for illegal chars
-        struct DynamicList* c_match_illegalchar1=createCharMatchList(0x0,0x8, 0xb,0xc, 0xe,0x1f, 0xd800,0xdfff, 0xfffe,0xffff);
-        uint32_t offsetToIllegalChar=getOffsetUntil((uint32_t*)(xmlFileDyn->items),xmlFileDyn->itemcnt,c_match_illegalchar1,NULL);
-        DlDelete(c_match_illegalchar1);
-        if(offsetToIllegalChar!=xmlFileDyn->itemcnt){   //We found an illegal char before the document ended
-            printf("ERROR: Illegal char found at position %d\n",offsetToIllegalChar);
-            return error_illegal_char;
-        }
-        printf("Info: No Illegal Chars so far\n");
-    }
-
-    //Actual processing of the file
-    match_xmldecl(xmlFileDyn,offsetInXMLfilep,rootDocumentElementp);
-
-    if(misc_ret_eof==match_misc(xmlFileDyn,offsetInXMLfilep,rootDocumentElementp)){
-        printf("Error: unexpected eof1\n");
-        exit(1);
-    }
-    match_doctypedecl(xmlFileDyn,offsetInXMLfilep,rootDocumentElementp);
-    if(misc_ret_eof==match_misc(xmlFileDyn,offsetInXMLfilep,rootDocumentElementp)){
-        printf("Error: unexpected eof2\n");
-        exit(1);
-    }
-    match_element(xmlFileDyn,offsetInXMLfilep,rootDocumentElementp);
-    if(misc_ret_charLeft==match_misc(xmlFileDyn,offsetInXMLfilep,rootDocumentElementp)){
-        printf("Error: Illegal Content, file should have ended\n");
-        exit(1);
-    }
-    dprintf(DBGT_INFO,"%p",(void*)rootDocumentElementp);
     (*returnDocumentRootpp)=rootDocumentElementp;
     return 0;
 }
 
 int match_phase1(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResults){
     //if XMLDecl exists overwrite the root element with this
-    switch(Match(xmlFileDlP,offsetInXMLfilep,MWM_p1_start,CM_SpaceChar)){
+    switch(MatchAndIncrement(xmlFileDlP,offsetInXMLfilep,MWM_p1_start,CM_SpaceChar)){
         case MWMres_p1_XMLDecl_start:
-            if((*offsetInXMLfilep)+1)
+            parseAttrib(xmlFileDlP,offsetInXMLfilep,ObjectToAttachResults,WM_pi_end);
         break;
         case MWMres_p1_doctype_start:
+            parseDoctype(xmlFileDlP,offsetInXMLfilep,ObjectToAttachResults);
         break;
         case MWMres_p1_pi_start:
         break;
         case MWMres_p1_comment_start:
+            parseComment(xmlFileDlP,offsetInXMLfilep,ObjectToAttachResults);
         break;
         case: MWMres_p1_element_start:
         break;
@@ -152,45 +121,125 @@ int match_phase1(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struc
         case: MWMres_p1_IllegalChar:
             dprintf(DBGT_ERROR,"Illegal character found in xml, offset=%d",(*offsetInXMLfilep));
         break;
+        //TODO what about CharData????
+        default:
+            //error -1
+            dprintf(DBGT_ERROR,"Unexpected EOF during phase 1");
+        break;
     }
 }
 
-int parseNameAndAttrib(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResults){
-
-}
-
-int match_doctypedecl(struct DynamicList* xmlFileDyn,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResults){
-    uint32_t matchIndex=0;
-    enum{match_res_doctype1_doctype=0,match_res_doctype1_otherchar=1};
-    struct DynamicList* mw_match_doctype1=createMultiWordMatchList(2,
-        createWordMatchList(10,
-            createCharMatchList(2,'<','<'),
-            createCharMatchList(2,'!','!'),
-            createCharMatchList(2,'D','D'),
-            createCharMatchList(2,'O','O'),
-            createCharMatchList(2,'C','C'),
-            createCharMatchList(2,'T','T'),
-            createCharMatchList(2,'Y','Y'),
-            createCharMatchList(2,'P','P'),
-            createCharMatchList(2,'E','E'),
-            createCharMatchList(8,0x09,0x09,0x0a,0x0a,0x0d,0x0d,0x20,0x20)  //whitespace must follow
-        ),
-        createWordMatchList(1,                      //no xml doctype is this file, so go ahead
-            createCharMatchList(6, 0x21,0xd7ff, 0xe000,0xfffd, 0x10000,0x10ffff)
-        )
-    );
-    xmlMatchAndMoveOffset(xmlFileDyn,offsetInXMLfilep,mw_match_doctype1,&matchIndex);
-    DlDelete(mw_match_doctype1);
-    if(matchIndex==match_res_doctype1_otherchar){
-        return 0;
+int parseXMLDecl(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResults){
+    if(ObjectToAttachResults->parent!=0){//this is not the root element, the doctype tag is not allowed to appear here
+        dprintf(DBGT_ERROR,"unexpected <?xml");
     }
-    printf("Info: Found Doctypedecl\n");
-    return 1;
+    if(ObjectToAttachResults->attributes->itemcnt!=0){
+        dprintf(DBGT_ERROR,"<?xml occured more than one or after Doctype");
+    }
+    ObjectToAttachResults->name=DlCombine_freeArg12(ObjectToAttachResults->name,stringToUTF32Dynlist("xml"));
+    parseAttrib(xmlFileDlP,offsetInXMLfilep,ObjectToAttachResults,WM_XMLDecl_end);
+}
+
+int parseDoctype(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResults){
 
 }
 
+//return indicates unexpected eof
+int parseNameAndAttrib(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResults,struct DynamicList* EndTag){
+
+}//return indicates unexpected eo
+
+int parseAttrib(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResults,struct DynamicList* WM_EndTagDlP){
+    //check for name startCharacter
+    uint32_t attNameStartOffset=(*offsetInXMLfilep);
+    uint32_t attNameEndOffset;
+    enum {MWMres_pA_EndTag=0,MWMres_pA_NameStart};
+    struct DynamicList* MWM_AttNameStartOrEndTag=createMultiWordMatchList(2,WM_EndTagDlP,WM_NameStartChar);
+    switch(MatchAndIncrement(xmlFileDlP,offsetInXMLfilep,MWM_AttNameStartOrEndTag,0)){
+        case MWMres_pA_EndTag:
+            return 0;
+        break;
+        case MWMres_pA_NameStart:
+            break;
+        default:
+            dprintf(DBGT_ERROR,"unexpected character as first attribute");
+        break;
+    }
+    //jump to end of name
+    enum {MCMres_pA_Space=0,MCMres_pA_Equals=1};
+    struct DynamicList* MCM_AttNameEndOrEqual=createMultiWordMatchList(2,CM_SpaceChar,CM_Equals);
+    switch(MatchAndIncrement(xmlFileDlP,offsetInXMLfilep,MCM_AttNameEndOrEqual,CM_NameChar)){
+        case MWMres_pA_Space:
+            attNameEndOffset=(*offsetInXMLfilep);
+            //move up to the = character
+            if(MatchAndIncrement(xmlFileDlP,offsetInXMLfilep,CM_Equals,CM_SpaceChar)!=0){
+                dprintf(DBGT_ERROR,"Unexpected character after attribute name");
+            }
+        break;
+        case MCMres_pA_Equals:
+            attNameEndOffset=(*offsetInXMLfilep);
+        default:
+            dprintf(DBGT_ERROR,"unexpected character as first attribute");
+        break;
+    }
+    //write name
+    struct DynamicList* keyDlP=DlCreate(sizeof(struct key_val_pair*),attNameEndOffset-attNameStartOffset,dynlisttype_utf32chars);
+    memcpy(keyDlP->items,((uint32_t*)xmlFileDlP->items)+attNameStartOffset,attNameEndOffset-attNameStartOffset);
+    //jump to start of AttValue
+    enum {};
 
 
+    //combine into key value pair and append to xmlTagAttributes
+    struct key_val_pair* key_valP=(struct key_val_pair*)malloc(sizeof(struct key_val_pair));
+    key_valP->key=keyDlP;
+    DlAppend(&(ObjectToAttachResults->attributes),key_valP,sizeof(key_val_pair*),dynlisttype_keyValuePairsp);
+
+
+
+
+
+}
+
+int parseComment(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResults){
+    uint32_t commentStartOffset=(*offsetInXMLfilep);
+    struct xmlTreeElement* Comment=(struct xmlTreeElement*)malloc(sizeof(struct xmlTreeElement));
+    Comment->type=xmltype_comment;
+    Comment->name=DlCreate(sizeof(uint32_t*),0,dynlisttype_utf32chars);
+    Comment->attributes=DlCreate(sizeof(struct key_val_pair*),0,dynlisttype_keyValuePairsp);
+    Comment->parent=ObjectToAttachResults;
+    if(Match(xmlFileDlP,offsetInXMLfilep,WM_comment_end,CM_AnyChar)){   //unexpected eof
+        dprintf(DBGT_ERROR,"Unexpected end of file while scanning comment, start tag for comment on offset %d",commentStartOffset);
+    }
+    uint32_t commentEndOffset=(*offsetInXMLfilep);
+    struct DynamicList* CommentCDataDlP=DlCreate(sizeof(uint32_t),commentEndOffset-commentStartOffset,dynlisttype_utf32chars);
+    memcpy(CommentCDataDlP->items,((uint32_t*)xmlFileDlP->items)+commentStartOffset,commentEndOffset-commentStartOffset);
+    Comment->content=CommentCDataDlP;
+    DlAppend(&(ObjectToAttachResults->content),Comment,sizeof(struct xmlTreeElement*),dynlisttype_xmlELMNTCollectionp);
+}
+
+int parsePi(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResults){
+
+}
+
+int parseCdata(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResults){
+    uint32_t cDataStartOffset=(*offsetInXMLfilep);
+    struct xmlTreeElement* CData=(struct xmlTreeElement*)malloc(sizeof(struct xmlTreeElement));
+    CData->type=xmltype_cdata;
+    CData->name=DlCreate(sizeof(uint32_t*),0,dynlisttype_utf32chars);
+    CData->attributes=DlCreate(sizeof(struct key_val_pair*),0,dynlisttype_keyValuePairsp);
+    CData->parent=ObjectToAttachResults;
+    if(Match(xmlFileDlP,offsetInXMLfilep,WM_cdata_end,CM_AnyChar)){   //unexpected eof
+        dprintf(DBGT_ERROR,"Unexpected end of file while scanning comment, start tag for cdata on offset %d",commentStartOffset);
+    }
+    uint32_t cDataEndOffset=(*offsetInXMLfilep);
+    struct DynamicList* CDataDlP=DlCreate(sizeof(uint32_t),cDataEndOffset-cDataStartOffset,dynlisttype_utf32chars);
+    memcpy(CDataDlP->items,((uint32_t*)xmlFileDlP->items)+cDataStartOffset,cDataEndOffset-cDataStartOffset);
+    CData->content=CDataDlP;
+    DlAppend(&(ObjectToAttachResults->content),CData,sizeof(struct xmlTreeElement*),dynlisttype_xmlELMNTCollectionp);
+}
+
+
+//TODO still needed?
 struct DynamicList* ClosingTagFromDynList(struct DynamicList* utf32DynListIn){
     struct DynamicList* w_match_list=DlCreate(sizeof(struct DynamicList*),utf32DynListIn->itemcnt+2,ListType_WordMatchp);
     ((struct DynamicList**)w_match_list->items)[0]=createCharMatchList(2,'<','<');
@@ -201,127 +250,17 @@ struct DynamicList* ClosingTagFromDynList(struct DynamicList* utf32DynListIn){
     return w_match_list;
 }
 
-//WARNING mw_EndOfTag and subitems will be freed!!!
-uint32_t parseAttributesAndMatchEndOfTag(struct DynamicList* xmlFileDyn,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResults,struct DynamicList* mw_EndOfTag){
-    //create new list for matching start of att combined with mw_EndOfTag
-    printf("Try to find attributes");
-    uint32_t matchIndex=0;
-    uint32_t match_res_att1_attnamestartchar=mw_EndOfTag->itemcnt;
 
-    struct DynamicList* mw_match_att1=DlCreate(sizeof(struct DynamicList*),mw_EndOfTag->itemcnt+1,ListType_MultiWordMatchp);
-    for(uint32_t posInEndOfTag=0;posInEndOfTag<mw_EndOfTag->itemcnt;posInEndOfTag++){
-        ((struct DynamicList**)mw_match_att1->items)[posInEndOfTag]=((struct DynamicList**)mw_EndOfTag->items)[posInEndOfTag];
-    }
-    ((struct DynamicList**)mw_match_att1->items)[match_res_att1_attnamestartchar]=createWordMatchList(1,
-        createCharMatchList(32,        //matches all allowed name start char's
-            ':',':', 'A','Z', '_','_', 'a','z', 0xc0,0xd6,
-            0xd8,0xf6, 0xf8,0x2ff, 0x370,0x37d, 0x37f,0x1fff, 0x200c,0x200d,
-            0x2070,0x218f, 0x2c00,0x2fef, 0x3001,0xd7ff, 0xf900,0xfdcf, 0xfdf0,0xfffd,
-            0x10000,0xeffff
-        )
-    );
 
-    //Find end of attribute name
-    enum {match_res_att2_whitespace=0,match_res_att2_eq=1,match_res_att2_illegal=2};
-    struct DynamicList* mc_match_att2=createMultiCharMatchList(3,
-        createCharMatchList(8, 0x09,0x09, 0x0a,0x0a, 0x0d,0x0d, 0x20,0x20),
-        createCharMatchList(2, '=','='),
-        createCharMatchList(34,                                         //List of characters that are not allowed to occur in name
-            0x21,0x2c, 0x2f,0x2f, 0x3b,0x40, 0x5b,0x5e, 0x60,0x60,
-            0x7b,0xb6, 0xb8,0xbf, 0xd7,0xd7, 0xf7,0xf7, 0x37e,0x37e,
-            0x2000,0x200b, 0x200e,0x203e, 0x2041,0x2069, 0x2190,0x2bff, 0x2ff0,0x3000,
-            0xe000,0xf8ff, 0xfdd0,0xfdef
-        )
-    );
-    //move up to "="
-    enum {match_res_att3_eq=0,match_res_att3_illegal=1};
-    struct DynamicList* mc_match_att3=createMultiCharMatchList(2,
-        createCharMatchList(2,'=','='),
-        createCharMatchList(6,0x21,0xd7ff,0xe000,0xfffd,0x10000,0x10ffff)
-    );
 
-    //move to " or '
-    enum {match_res_att4_qts=0,match_res_att4_qtd=1,match_res_att4_illegal=2};
-    struct DynamicList* mc_match_att4=createMultiCharMatchList(3,
-        createCharMatchList(2,'\'','\''),
-        createCharMatchList(2,'"','"'),
-        createCharMatchList(6,0x21,0xd7ff,0xe000,0xfffd,0x10000,0x10ffff)
-    );
-    enum {match_res_att5_end=0,match_res_att5_illegal=1};
-    struct DynamicList* mw_match_att5_qts=createMultiCharMatchList(2,
-        createCharMatchList(2,'\'','\''),
-        createCharMatchList(2, '<','<')
-    );
-    struct DynamicList* mw_match_att5_qtd=createMultiCharMatchList(2,
-        createCharMatchList(2,'"','"'),
-        createCharMatchList(2,'<','<')
-    );
-    while(1){
-        xmlMatchAndMoveOffset(xmlFileDyn,offsetInXMLfilep,mw_match_att1,&matchIndex);
-        if(matchIndex!=match_res_att1_attnamestartchar){    //Tag closed because mw_EndOfTag matched
-            printf("Finished Parsing atts\n");
-            break;
-        }
-        uint32_t attkeyStart=(*offsetInXMLfilep);
-        (*offsetInXMLfilep)+=1; //move over name start char
-        xmlMatchAndMoveOffset(xmlFileDyn,offsetInXMLfilep,mc_match_att2,&matchIndex);
-        uint32_t attkeyEnd=(*offsetInXMLfilep);
-        if(matchIndex==match_res_att2_illegal){
-            printf("Error: Illegal Character in Attribute Key\n");
-            exit(1);
-        }else if(matchIndex==match_res_att2_whitespace){
-            printf("TEST: Whitesp\n");
-            xmlMatchAndMoveOffset(xmlFileDyn,offsetInXMLfilep,mc_match_att3,&matchIndex);
-            if(matchIndex==match_res_att3_illegal){
-                printf("Error: Illegal Character after Attribute Key\n");
-                exit(1);
-            }
-        }
-        (*offsetInXMLfilep)+=1;     //Move past "="
-        xmlMatchAndMoveOffset(xmlFileDyn,offsetInXMLfilep,mc_match_att4,&matchIndex);
-        (*offsetInXMLfilep)+=1;     //Move past quote
-        uint32_t attValStart=(*offsetInXMLfilep);
-        if(matchIndex==match_res_att4_illegal){
-            printf("Could not find quote opening\n");
-            exit(1);
-        }else if(match_res_att4_qts==matchIndex){
-            xmlMatchAndMoveOffset(xmlFileDyn,offsetInXMLfilep,mw_match_att5_qts,&matchIndex);
-        }else{ //matchIndex==match_res_att4_qtd (double quote)
-            xmlMatchAndMoveOffset(xmlFileDyn,offsetInXMLfilep,mw_match_att5_qtd,&matchIndex);
-        }
-        if(matchIndex==match_res_att5_illegal){
-            printf("Error: Illegal Character in Attribute Value\n");
-            exit(1);
-        }
-        uint32_t attValEnd=(*offsetInXMLfilep);    //one character after the end of the value of the attribute
-        (*offsetInXMLfilep)+=1; //move over quote
-        struct DynamicList* attKeyp=DlCreate(sizeof(uint32_t),attkeyEnd-attkeyStart,dynlisttype_utf32chars);
-        memcpy(attKeyp->items,(((uint32_t*)xmlFileDyn->items)+attkeyStart),sizeof(uint32_t)*(attkeyEnd-attkeyStart));
-        struct DynamicList* attValp=DlCreate(sizeof(uint32_t),attValEnd-attValStart,dynlisttype_utf32chars);
-        memcpy(attValp->items,(((uint32_t*)xmlFileDyn->items)+attValStart),sizeof(uint32_t)*(attValEnd-attValStart));
 
-        printf("New Attribute found Key: ");
-        printUTF32Dynlist(attKeyp);
-        printf("New Attribute found Val: ");
-        printUTF32Dynlist(attValp);
 
-        struct key_val_pair attKeyAndVal;
-        attKeyAndVal.key=attKeyp;
-        attKeyAndVal.value=attValp;
 
-        DlAppend(&(ObjectToAttachResults->attributes),&attKeyAndVal,sizeof(struct key_val_pair),dynlisttype_keyValuePairsp);
-    }
-    DlDelete(mw_match_att1);  //Warning also deallocates items in mw_EndOfTag->items because they are copied over as reference to mw_match_att1
-    free(mw_EndOfTag);
-    DlDelete(mc_match_att2);
-    DlDelete(mc_match_att3);
-    DlDelete(mc_match_att4);
-    DlDelete(mw_match_att5_qts);
-    DlDelete(mw_match_att5_qtd);
-    printf("Deallocation sucseeded\n");
-    return matchIndex;
-}
 
+
+
+
+//TODO remove OLD CODE below
 void match_element(struct DynamicList* xmlFileDyn,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResults){
     //Stay in this function until we exit the last element
     uint32_t ignorePrecedingWhitespace=1;
