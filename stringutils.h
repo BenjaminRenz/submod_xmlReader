@@ -7,7 +7,7 @@
 struct xmlTreeElement;
 struct key_val_pair;
 
-enum {  dynlisttype_utf32chars,          //items of type uint32_t (utf32 characters not null terminated)
+enum {  dynlisttype_utf32chars=54,          //items of type uint32_t (utf32 characters not null terminated)
         dynlisttype_keyValuePairsp,      //items of type struct key_val_pait*
         dynlisttype_xmlELMNTCollectionp, //items of type struct xmlTreeElement*
 
@@ -38,6 +38,7 @@ struct DynamicList* DlCreate            (size_t sizeofListElements,uint32_t NumO
 struct DynamicList* DlDuplicate         (struct DynamicList* inDynlistP);
 void                DlAppend            (struct DynamicList** ListOrNullPtr,void* newElement,size_t sizeofListElements,uint32_t typeId);
 struct DynamicList* DlCombine           (struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P);
+struct DynamicList* DlCombine_freeArg1  (struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P);
 struct DynamicList* DlCombine_freeArg2  (struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P);
 struct DynamicList* DlCombine_freeArg12 (struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P);
 void                DlDelete            (struct DynamicList* DynListPtr);
@@ -63,8 +64,8 @@ size_t   utf32CutASCII  (uint32_t* inputString, uint32_t numberOfUTF32Chars, cha
 uint32_t utf32ToUtf8    (uint32_t* inputString, uint32_t numberOfUTF32Chars,uint8_t* outputString);
 
 
-uint32_t getOffsetUntil_freeArg3(uint32_t* fileInUtf32, uint32_t maxScanLength, struct DynamicList* MatchAgainst, uint32_t* optional_matchIndex);
-uint32_t Match(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP, struct DynamicList* breakIfMatchDlP, struct DynamicList* skipIfMatchDlP);
+int MatchAndIncrement(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP, struct DynamicList* breakIfMatchDlP, struct DynamicList* skipIfMatchDlP);
+int Match(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP, struct DynamicList* breakIfMatchDlP, struct DynamicList* skipIfMatchDlP);
 
 
 //xml functions

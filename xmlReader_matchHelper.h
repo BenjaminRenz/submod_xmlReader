@@ -1,22 +1,5 @@
 
 
-//Phase 1
-struct DynamicList* MWM_p1_start;
-enum {
-    MWMres_p1_XMLDecl_start=0,
-    MWMres_p1_doctype_start=1,
-    MWMres_p1_element_start=2,
-    MWMres_p1_pi_start=3,
-    MWMres_p1_comment_start=4,
-    MWMres_p1_NonSpaceChar=5,
-    MWMres_p1_IllegalChar=6
-};
-
-
-//Phase 2
-
-
-
 struct DynamicList* CM_CharData_start;
 struct DynamicList* CM_IllegalChar;
 struct DynamicList* CM_NonSpaceChar;
@@ -25,14 +8,23 @@ struct DynamicList* CM_SpaceChar;
 struct DynamicList* CM_NameChar;
 struct DynamicList* CM_NameStartChar;
 struct DynamicList* CM_Equals;
-struct DynamicList* CM_Quotes;
+struct DynamicList* CM_QuoteSingle;
+struct DynamicList* CM_QuoteDouble;
+struct DynamicList* CM_PubidChar_withoutQuotes;
+struct DynamicList* CM_CharData;
+struct DynamicList* CM_LessThanChar;
+struct DynamicList* MCM_Quotes;
+struct DynamicList* MCM_PubidChar;
 struct DynamicList* WM_NameStartChar;
+struct DynamicList* WM_element_endTag;
+struct DynamicList* WM_element_endNonEmpty;
+struct DynamicList* WM_element_endEmpty;
 struct DynamicList* WM_SpaceChar;
 struct DynamicList* WM_XMLDecl_start;
 struct DynamicList* WM_XMLDecl_end;
 struct DynamicList* WM_doctype_start;
 struct DynamicList* WM_element_start;
-struct DynamicList* WM_cdata_start;     //can only occur inside elements
+struct DynamicList* WM_cdata_start;
 struct DynamicList* WM_cdata_end;
 struct DynamicList* WM_comment_start;
 struct DynamicList* WM_comment_end;
@@ -41,6 +33,10 @@ struct DynamicList* WM_pi_end;
 struct DynamicList* WM_IllegalChar;
 struct DynamicList* WM_NonSpaceChar;
 struct DynamicList* WM_attlist_end;
+struct DynamicList* MWM_NameStartChar;
+struct DynamicList* MWM_element_end;
+struct DynamicList* MWM_start;
+
 
 void init_matchlists(void){
     CM_CharData_start=createCharMatchList(2,'&','&');       //used for something like &amp; or &lt;
@@ -48,6 +44,7 @@ void init_matchlists(void){
     CM_NonSpaceChar=createCharMatchList(6,0x21,0xd7ff, 0xe000,0xfffd, 0x10000,0x10ffff);   //anything else except space
     CM_SpaceChar=createCharMatchList(8,0x9,0x9, 0xd,0xd, 0xa,0xa, 0x20,0x20);
     CM_AnyChar=createCharMatchList(12,0x09,0x09, 0x0a,0x0a, 0x0d,0x0d, 0x20,0xd7ff, 0xe000,0xfffd, 0x10000,0x10ffff);
+    CM_CharData=createCharMatchList(14,0x09,0x09, 0x0a,0x0a, 0x0d,0x0d, 0x20,'<', '<',0xd7ff, 0xe000,0xfffd, 0x10000,0x10ffff);
     CM_NameStartChar=createCharMatchList(32,        //matches all allowed name start char's
         ':',':', 'A','Z', '_','_', 'a','z', 0xc0,0xd6,
         0xd8,0xf6, 0xf8,0x2ff, 0x370,0x37d, 0x37f,0x1fff, 0x200c,0x200d,
@@ -60,8 +57,17 @@ void init_matchlists(void){
         0x2070,0x218f, 0x2c00,0x2fef, 0x3001,0xd7ff, 0xf900,0xfdcf, 0xfdf0,0xfffd,
         0x10000,0xeffff
     );
+    //TODO some of the ranges below can be combined
+    CM_PubidChar_withoutQuotes=createCharMatchList(46,
+        0x20,0x20, 0xd,0xd, 0xa,0xa, 'a','z', 'A','Z', '0','9', '-','-',
+        '(',')', '+','+', ',',',', '.','.', '/','/', ':',':', '=','=', '?','?',
+        ';',';', '!','!', '*','*', '#','#', '@','@', '$','$', '_','_', '%','%');
     CM_Equals=createCharMatchList(2,'=','=');
-    CM_Quotes=createCharMatchList(4,'\'','\'', '"','"');
+    CM_QuoteSingle=createCharMatchList(2,'\'','\'');
+    CM_QuoteDouble=createCharMatchList(2,'"','"');
+    CM_LessThanChar=createCharMatchList(2,'<','<');
+    MCM_PubidChar=createMultiCharMatchList(2,CM_PubidChar_withoutQuotes,CM_QuoteSingle);
+    MCM_Quotes=createMultiCharMatchList(2,CM_QuoteSingle,CM_QuoteDouble);
     WM_IllegalChar=createWordMatchList(1,DlDuplicate(CM_IllegalChar));
     WM_NonSpaceChar=createWordMatchList(1,DlDuplicate(CM_NonSpaceChar));
     WM_NameStartChar=createWordMatchList(1,CM_NameStartChar);
@@ -91,8 +97,20 @@ void init_matchlists(void){
         DlDuplicate(CM_SpaceChar)  //whitespace must follow
     );
     WM_element_start=createWordMatchList(2,
-        createCharMatchList(2,'<','<'),
+        DlDuplicate(CM_LessThanChar),
         DlDuplicate(CM_NameStartChar)
+    );
+    WM_element_endTag=createWordMatchList(2,
+        createCharMatchList(2,'<','<'),
+        createCharMatchList(2,'/','/'),
+        DlDuplicate(CM_NameStartChar)
+    );
+    WM_element_endNonEmpty=createWordMatchList(1,
+        createCharMatchList(2,'>','>')
+    );
+    WM_element_endEmpty=createWordMatchList(2,
+        createCharMatchList(2,'/','/'),
+        createCharMatchList(2,'>','>')
     );
     WM_cdata_start=createWordMatchList(9,
         createCharMatchList(2,'<','<'),
@@ -141,16 +159,19 @@ void init_matchlists(void){
         createCharMatchList(2,'?','?'),
         createCharMatchList(2,'>','>')
     );
-    MWM_p1_start=createMultiWordMatchList(7,
+    MWM_element_end=createMultiWordMatchList(2,
+        WM_element_endNonEmpty,
+        WM_element_endEmpty
+    );
+    MWM_start=createMultiWordMatchList(7,
         WM_XMLDecl_start,
         WM_doctype_start,
+        WM_element_endTag,      //must be before WM_element_start
         WM_element_start,
         WM_pi_start,
         WM_comment_start,
-        WM_NonSpaceChar,
         WM_IllegalChar
     );
-
 
 }
 

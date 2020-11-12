@@ -141,7 +141,7 @@ uint32_t compareEqualDynamicUTF32List(struct DynamicList* List1UTF32,struct Dyna
         return 0;
     }
     if(List1UTF32->itemcnt!=List2UTF32->itemcnt){
-        //dprintf(DBGT_INFO,"Compared strings do not have the same length\n"); TODO uncomment
+        dprintf(DBGT_ERROR,"Compared strings do not have the same length\n");
         return 0;
     }
     int matchFlag=1;
@@ -257,11 +257,12 @@ size_t utf32CutASCII(uint32_t* inputString, uint32_t numberOfUTF32Chars, char* o
 
 
 //returns mach index or -1 if skipped or not found
-uint32_t MatchAndIncrement(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP, struct DynamicList* breakIfMatchDlP, struct DynamicList* skipIfMatchDlP){
-    uint32_t matchIdx=Match(StringInUtf32DlP,InOutIndexP,breakIfMatchDlP,skipIfMatchDlP);
+int MatchAndIncrement(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP, struct DynamicList* breakIfMatchDlP, struct DynamicList* skipIfMatchDlP){
+    int matchIdx=Match(StringInUtf32DlP,InOutIndexP,breakIfMatchDlP,skipIfMatchDlP);
     if(matchIdx<0){
         return matchIdx;
     }
+    dprintf(DBGT_INFO,"match index: %d",matchIdx);
     if(breakIfMatchDlP->type==ListType_CharMatch||breakIfMatchDlP->type==ListType_MultiCharMatchp){ //shift by one character
         (*InOutIndexP)++;
         return matchIdx;
@@ -289,59 +290,63 @@ int MatchCharRange(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP,st
 
 //returns index inside the breakIfMatch List or -1 when no match occurs
 //TODO remember value of InOutIndexP if there is no match write it back
-uint32_t Match(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP, struct DynamicList* breakIfMatchDlP, struct DynamicList* skipIfMatchDlP){
+int Match(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP, struct DynamicList* breakIfMatchDlP, struct DynamicList* skipIfMatchDlP){
     if(StringInUtf32DlP->type!=dynlisttype_utf32chars){
         dprintf(DBGT_ERROR,"Not a valid utf32 file");
     }
     int MatchIdxSkip=0;
     while(MatchIdxSkip>=0){
-        //check if breakIfMatch has any match
-        switch(breakIfMatchDlP->type){
-            int ret;
-            case ListType_CharMatch:
-                if(((*InOutIndexP)<StringInUtf32DlP->itemcnt) && (ret=MatchCharRange(StringInUtf32DlP,InOutIndexP,breakIfMatchDlP)>-1)){
-                    return ret;
-                }
-            break;
-            case ListType_MultiCharMatchp:
-                for(uint32_t MCMidx=0;MCMidx<(breakIfMatchDlP->itemcnt);MCMidx++){        //iterate over sub char match lists
-                    struct DynamicList* CMDlP=(((struct DynamicList**)breakIfMatchDlP->items)[MCMidx]);  //get char match list
-                    if((*InOutIndexP)<StringInUtf32DlP->itemcnt && (ret=MatchCharRange(StringInUtf32DlP,InOutIndexP,CMDlP)>-1)){
+        if(breakIfMatchDlP){
+            //check if breakIfMatch has any match
+            switch(breakIfMatchDlP->type){
+                int ret;
+                case ListType_CharMatch:
+                    if(((*InOutIndexP)<StringInUtf32DlP->itemcnt) && (ret=MatchCharRange(StringInUtf32DlP,InOutIndexP,breakIfMatchDlP)>-1)){
                         return ret;
                     }
-                }
-            break;
-            case ListType_WordMatchp:
-                if((*InOutIndexP)+breakIfMatchDlP->itemcnt<StringInUtf32DlP->itemcnt){ //check that the string was not overshot
-                    for(uint32_t WMidx=0;WMidx<breakIfMatchDlP->itemcnt;WMidx++){
-                        struct DynamicList* CMDlP=(((struct DynamicList**)breakIfMatchDlP->items)[WMidx]);
-                        if(1+MatchCharRange(StringInUtf32DlP,InOutIndexP,CMDlP)){
-                            if(WMidx==breakIfMatchDlP->itemcnt-1){return 0;} //if we reached the end of the word
-                        }else{
-                            break;
+                break;
+                case ListType_MultiCharMatchp:
+                    for(uint32_t MCMidx=0;MCMidx<(breakIfMatchDlP->itemcnt);MCMidx++){        //iterate over sub char match lists
+                        struct DynamicList* CMDlP=(((struct DynamicList**)breakIfMatchDlP->items)[MCMidx]);  //get char match list
+                        if((*InOutIndexP)<StringInUtf32DlP->itemcnt && (ret=MatchCharRange(StringInUtf32DlP,InOutIndexP,CMDlP)>-1)){
+                            return ret;
                         }
                     }
-                }
-            break;
-            case ListType_MultiWordMatchp:
-                for(uint32_t MWMidx=0;MWMidx<(breakIfMatchDlP->itemcnt);MWMidx++){        //iterate over sub word match lists
-                    struct DynamicList* WMDlP=(((struct DynamicList**)breakIfMatchDlP->items)[MWMidx]);  //get char match list
-                    if((*InOutIndexP)+WMDlP->itemcnt<StringInUtf32DlP->itemcnt){ //check that the string was not overshot
-                        for(uint32_t WMidx=0;WMidx<WMDlP->itemcnt;WMidx++){
-                            struct DynamicList* CMDlP=(((struct DynamicList**)WMDlP->items)[WMidx]);
-                            if(1+MatchCharRange(StringInUtf32DlP,InOutIndexP,CMDlP)){
-                                if(WMidx==WMDlP->itemcnt-1){return MWMidx;} //if we reached the end of the word
+                break;
+                case ListType_WordMatchp:;
+                    uint32_t offsetCopy=(*InOutIndexP);
+                    if((*InOutIndexP)+breakIfMatchDlP->itemcnt<StringInUtf32DlP->itemcnt){ //check that the string was not overshot
+                        for(uint32_t WMidx=0; WMidx<breakIfMatchDlP->itemcnt; WMidx++,offsetCopy++){
+                            struct DynamicList* CMDlP=(((struct DynamicList**)breakIfMatchDlP->items)[WMidx]);
+                            if(1+MatchCharRange(StringInUtf32DlP,&offsetCopy,CMDlP)){
+                                if(WMidx==breakIfMatchDlP->itemcnt-1){return 0;} //if we reached the end of the word
                             }else{
                                 break;
                             }
                         }
                     }
-                }
-            break;
-            default:
-                dprintf(DBGT_ERROR,"Wrong dynlist type");
-                return -1;
-            break;
+                break;
+                case ListType_MultiWordMatchp:
+                    for(uint32_t MWMidx=0;MWMidx<(breakIfMatchDlP->itemcnt);MWMidx++){        //iterate over sub word match lists
+                        struct DynamicList* WMDlP=(((struct DynamicList**)breakIfMatchDlP->items)[MWMidx]);  //get char match list
+                        uint32_t offsetCopy=(*InOutIndexP);
+                        if((*InOutIndexP)+WMDlP->itemcnt<StringInUtf32DlP->itemcnt){ //check that the string was not overshot
+                            for(uint32_t WMidx=0;WMidx<WMDlP->itemcnt;WMidx++,offsetCopy++){
+                                struct DynamicList* CMDlP=(((struct DynamicList**)WMDlP->items)[WMidx]);
+                                if(1+MatchCharRange(StringInUtf32DlP,&offsetCopy,CMDlP)){
+                                    if(WMidx==WMDlP->itemcnt-1){return MWMidx;} //if we reached the end of the word
+                                }else{
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                break;
+                default:
+                    dprintf(DBGT_ERROR,"Wrong dynlist type");
+                    return -1;
+                break;
+            }
         }
 
         //check if we are allowed to move the global offset
@@ -357,16 +362,22 @@ uint32_t Match(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP, struc
                     for(uint32_t MCMidx=0;MCMidx<(skipIfMatchDlP->itemcnt);MCMidx++){        //iterate over sub char match lists
                         struct DynamicList* CMDlP=(((struct DynamicList**)skipIfMatchDlP->items)[MCMidx]);  //get char match list
                         if((*InOutIndexP)<StringInUtf32DlP->itemcnt){
-                            MatchIdxSkip=MatchCharRange(StringInUtf32DlP,InOutIndexP,CMDlP);
+                            if((MatchIdxSkip=MatchCharRange(StringInUtf32DlP,InOutIndexP,CMDlP))>=0){
+                                break;
+                            }
                         }
                     }
                 break;
-                case ListType_WordMatchp:
+                case ListType_WordMatchp:;
+                    uint32_t offsetCopy=(*InOutIndexP);
                     if((*InOutIndexP)+skipIfMatchDlP->itemcnt<StringInUtf32DlP->itemcnt){ //check that the string was not overshot
-                        for(uint32_t WMidx=0;WMidx<skipIfMatchDlP->itemcnt;WMidx++){
+                        for(uint32_t WMidx=0;WMidx<skipIfMatchDlP->itemcnt; WMidx++,offsetCopy++){
                             struct DynamicList* CMDlP=(((struct DynamicList**)skipIfMatchDlP->items)[WMidx]);
-                            if(1+MatchCharRange(StringInUtf32DlP,InOutIndexP,CMDlP)){
-                                if(WMidx==skipIfMatchDlP->itemcnt-1){MatchIdxSkip=0;} //if we reached the end of the word
+                            if(1+MatchCharRange(StringInUtf32DlP,&offsetCopy,CMDlP)){
+                                if(WMidx==skipIfMatchDlP->itemcnt-1){
+                                        MatchIdxSkip=0;
+                                    break;
+                                } //if we reached the end of the word
                             }else{
                                 break;
                             }
@@ -376,11 +387,16 @@ uint32_t Match(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP, struc
                 case ListType_MultiWordMatchp:
                     for(uint32_t MWMidx=0;MWMidx<(skipIfMatchDlP->itemcnt);MWMidx++){        //iterate over sub word match lists
                     struct DynamicList* WMDlP=(((struct DynamicList**)skipIfMatchDlP->items)[MWMidx]);  //get char match list
+                    uint32_t offsetCopy=(*InOutIndexP);
                     if((*InOutIndexP)+WMDlP->itemcnt<StringInUtf32DlP->itemcnt){ //check that the string was not overshot
-                        for(uint32_t WMidx=0;WMidx<WMDlP->itemcnt;WMidx++){
+                        for(uint32_t WMidx=0; WMidx<WMDlP->itemcnt; WMidx++,offsetCopy++){
                             struct DynamicList* CMDlP=(((struct DynamicList**)WMDlP->items)[WMidx]);
-                            if(1+MatchCharRange(StringInUtf32DlP,InOutIndexP,CMDlP)){
-                                if(WMidx==WMDlP->itemcnt-1){MatchIdxSkip=MWMidx;} //if we reached the end of the word
+                            if(1+MatchCharRange(StringInUtf32DlP,&offsetCopy,CMDlP)){
+                                if(WMidx==WMDlP->itemcnt-1){
+                                    MatchIdxSkip=MWMidx;
+                                    MWMidx=skipIfMatchDlP->itemcnt;
+                                    break;
+                                } //if we reached the end of the word
                             }else{
                                 break;
                             }
@@ -532,6 +548,12 @@ struct DynamicList* DlCombine(struct DynamicList* Dynlist1P,struct DynamicList* 
     memcpy(DynlistRP,Dynlist1P,sizeof(struct DynamicList*)+sizeof(void*)*(Dynlist1P->itemcnt));
     DynlistRP->items=(&(DynlistRP[1]));
     memcpy(DynlistRP->items+DynlistRP->itemcnt,Dynlist2P->items,Dynlist2P->itemcnt*sizeof(void*));
+    return(DynlistRP);
+}
+
+struct DynamicList* DlCombine_freeArg1(struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P){
+    struct DynamicList* DynlistRP=DlCombine(Dynlist1P,Dynlist2P);
+    DlDelete(Dynlist1P);
     return(DynlistRP);
 }
 
@@ -787,34 +809,36 @@ struct DynamicList* utf32dynlistToInts_freeArg1(struct DynamicList* NumberSepera
     uint32_t matchIndex=0;
     while(offsetInString<utf32StringInP->itemcnt){
         //no offset because will match all possible chars
-        getOffsetUntil(((uint32_t*)utf32StringInP->items)+offsetInString,1,nummatch,&matchIndex);
-        if(matchIndex==match_res_nummatch_illegal){
-            dprintf(DBGT_ERROR,"Illegal Character in inputstring");
-            return 0;
-        }else if(matchIndex==match_res_nummatch_sign){
-            if(flagreg==0){
-                flagreg|=flag_minus_mantis;
-            }else{
-                dprintf(DBGT_ERROR,"Unexpected Sign Char");
+        switch(MatchAndIncrement(utf32StringInP,&offsetInString,nummatch,0)){
+            case match_res_nummatch_illegal:
+                dprintf(DBGT_ERROR,"Illegal Character in inputstring");
                 return 0;
-            }
-        }else if(matchIndex==match_res_nummatch_nsperator){
-            if(flagreg&flag_in_digits){
-                if(flagreg&flag_minus_mantis){
-                    mantisVal*=(-1);
+            break;
+            case match_res_nummatch_sign:
+                if(flagreg==0){
+                    flagreg|=flag_minus_mantis;
+                }else{
+                    dprintf(DBGT_ERROR,"Unexpected Sign Char");
+                    return 0;
                 }
-                DlAppend(&returnDynlistp,&mantisVal,sizeof(double),ListType_double);
-                flagreg=0;
-                mantisVal=0;
-            }
-        }else{
-            flagreg|=flag_in_digits;
-            mantisVal*=10;
-            mantisVal+=matchIndex;
+            break;
+            case match_res_nummatch_nsperator:
+                if(flagreg&flag_in_digits){
+                    if(flagreg&flag_minus_mantis){
+                        mantisVal*=(-1);
+                    }
+                    DlAppend(&returnDynlistp,&mantisVal,sizeof(double),ListType_double);
+                    flagreg=0;
+                    mantisVal=0;
+                }
+            break;
+            default:
+                flagreg|=flag_in_digits;
+                mantisVal*=10;
+                mantisVal+=matchIndex;
+            break;
         }
-        offsetInString++;
     }
-
     if(flagreg&flag_in_digits){
         if(flagreg&flag_minus_mantis){
             mantisVal*=(-1);
@@ -872,97 +896,100 @@ struct DynamicList* utf32dynlistToDoubles_freeArg123(struct DynamicList* NumberS
         OrderOfMagP,
         createCharMatchList(2,0x00,0xffff)
     );
-    uint32_t matchIndex=0;
     while(offsetInString<utf32StringInP->itemcnt){
         //no offset because will match all possible chars
-        getOffsetUntil(((uint32_t*)(utf32StringInP->items))+offsetInString,1,nummatch,&matchIndex);
-        if(matchIndex==match_res_nummatch_illegal){
-            dprintf(DBGT_ERROR,"Illegal Character in inputstring");
-            return 0;
-        }else if(matchIndex==match_res_nummatch_sign){
-            if(flagreg&flag_orOfMag){
-                flagreg|=flag_minus_exp;
-            }else if(flagreg==0){
-                flagreg|=flag_minus_mantis;
-            }else{
-                dprintf(DBGT_ERROR,"Unexpected Sign Char");
+        uint32_t matchIndex=MatchAndIncrement(utf32StringInP,&offsetInString,nummatch,0);
+        switch(matchIndex){
+            case match_res_nummatch_illegal:
+                dprintf(DBGT_ERROR,"Illegal Character in inputstring");
                 return 0;
-            }
-        }else if(matchIndex==match_res_nummatch_nseperator){
-            if(flagreg&flag_orOfMag){
-                dprintf(DBGT_ERROR,"Number ended appruptly after exponent");
-                return 0;
-            }
-            if(flagreg&flag_decplc){
-                dprintf(DBGT_ERROR,"Number ended appruptly after DecimalSeperator Char");
-                return 0;
-            }
-            if(flagreg&(flag_in_digits|flag_in_decplcdigits|flag_in_exp_digits)){
-                if(flagreg&flag_minus_mantis){
-                    mantisVal*=(-1.0);
+            break;
+            case match_res_nummatch_sign:
+                if(flagreg&flag_orOfMag){
+                    flagreg|=flag_minus_exp;
+                }else if(flagreg==0){
+                    flagreg|=flag_minus_mantis;
+                }else{
+                    dprintf(DBGT_ERROR,"Unexpected Sign Char");
+                    return 0;
                 }
-                if(flagreg&flag_minus_exp){
-                    exponVal*=(-1);
+            break;
+            case match_res_nummatch_nseperator:
+                if(flagreg&flag_orOfMag){
+                    dprintf(DBGT_ERROR,"Number ended appruptly after exponent");
+                    return 0;
                 }
-                exponVal-=NumOfDecplcDig;
-                mantisVal*=pow(10,exponVal);
-                DlAppend(&returnDynlistp,&mantisVal,sizeof(double),ListType_double);
-                flagreg=0;
-                NumOfDecplcDig=0;
-                mantisVal=0;
-                exponVal=0;
-            }
-        }else if(matchIndex==match_res_nummatch_dseperator){
-            if(flagreg&flag_in_digits){
-                flagreg|=flag_in_decplcdigits;         //enable in_decplcdigits flag
-                flagreg&= ~(flag_in_digits);    //disable in_digits flag
-            }else if(flagreg==0){               //to handle ".2"
-                flagreg|=flag_in_decplcdigits;
-                mantisVal=0;
-            }else{
-                if(flagreg&flag_in_exp_digits){
-                    dprintf(DBGT_ERROR,"unexpected decDigSeparator in exponent");
-                }else if(flagreg&flag_in_decplcdigits){
-                    dprintf(DBGT_ERROR,"more than one decDigSeperator in mantisse");
+                if(flagreg&flag_decplc){
+                    dprintf(DBGT_ERROR,"Number ended appruptly after DecimalSeperator Char");
+                    return 0;
                 }
-            }
-        }else if(matchIndex==match_res_nummatch_OrderOfMag){
-            if(flagreg&(flag_in_digits|flag_in_decplcdigits)){
-                flagreg|=flag_orOfMag;
-                flagreg&=~(flag_in_digits|flag_in_decplcdigits);    //clear flags
-            }else{
-                dprintf(DBGT_ERROR,"Unexpected Order of Magnitude Char");
-                return 0;
-            }
-        }else{      //Digit from 0-9
-            if(flagreg&flag_in_decplcdigits){
-                NumOfDecplcDig++;
-                mantisVal*=10;
-                mantisVal+=matchIndex;
-            }else if(flagreg&flag_decplc){
-                NumOfDecplcDig++;
-                flagreg|=flag_in_decplcdigits;
-                flagreg&=~(flag_decplc);
-                mantisVal*=10;
-                mantisVal+=matchIndex;
-            }else if(flagreg&flag_in_digits){
-                mantisVal*=10;
-                mantisVal+=matchIndex;
-            }else if(flagreg&flag_orOfMag){
-                exponVal=matchIndex;
-                flagreg|=flag_in_exp_digits;
-                flagreg&=~(flag_orOfMag);
-            }else if(flagreg&flag_in_exp_digits){
-                exponVal*=10;
-                exponVal+=matchIndex;
-            }else{
-                flagreg|=flag_in_digits;
-                mantisVal=matchIndex;
-            }
+                if(flagreg&(flag_in_digits|flag_in_decplcdigits|flag_in_exp_digits)){
+                    if(flagreg&flag_minus_mantis){
+                        mantisVal*=(-1.0);
+                    }
+                    if(flagreg&flag_minus_exp){
+                        exponVal*=(-1);
+                    }
+                    exponVal-=NumOfDecplcDig;
+                    mantisVal*=pow(10,exponVal);
+                    DlAppend(&returnDynlistp,&mantisVal,sizeof(double),ListType_double);
+                    flagreg=0;
+                    NumOfDecplcDig=0;
+                    mantisVal=0;
+                    exponVal=0;
+                }
+            break;
+            case match_res_nummatch_dseperator:
+                if(flagreg&flag_in_digits){
+                    flagreg|=flag_in_decplcdigits;         //enable in_decplcdigits flag
+                    flagreg&= ~(flag_in_digits);    //disable in_digits flag
+                }else if(flagreg==0){               //to handle ".2"
+                    flagreg|=flag_in_decplcdigits;
+                    mantisVal=0;
+                }else{
+                    if(flagreg&flag_in_exp_digits){
+                        dprintf(DBGT_ERROR,"unexpected decDigSeparator in exponent");
+                    }else if(flagreg&flag_in_decplcdigits){
+                        dprintf(DBGT_ERROR,"more than one decDigSeperator in mantisse");
+                    }
+                }
+            case match_res_nummatch_OrderOfMag:
+                if(flagreg&(flag_in_digits|flag_in_decplcdigits)){
+                    flagreg|=flag_orOfMag;
+                    flagreg&=~(flag_in_digits|flag_in_decplcdigits);    //clear flags
+                }else{
+                    dprintf(DBGT_ERROR,"Unexpected Order of Magnitude Char");
+                    return 0;
+                }
+            break;
+            default:
+                if(flagreg&flag_in_decplcdigits){
+                    NumOfDecplcDig++;
+                    mantisVal*=10;
+                    mantisVal+=matchIndex;
+                }else if(flagreg&flag_decplc){
+                    NumOfDecplcDig++;
+                    flagreg|=flag_in_decplcdigits;
+                    flagreg&=~(flag_decplc);
+                    mantisVal*=10;
+                    mantisVal+=matchIndex;
+                }else if(flagreg&flag_in_digits){
+                    mantisVal*=10;
+                    mantisVal+=matchIndex;
+                }else if(flagreg&flag_orOfMag){
+                    exponVal=matchIndex;
+                    flagreg|=flag_in_exp_digits;
+                    flagreg&=~(flag_orOfMag);
+                }else if(flagreg&flag_in_exp_digits){
+                    exponVal*=10;
+                    exponVal+=matchIndex;
+                }else{
+                    flagreg|=flag_in_digits;
+                    mantisVal=matchIndex;
+                }
+            break;
         }
-        offsetInString++;
     }
-
     //finish parsing last double
     if(flagreg&flag_orOfMag){
         dprintf(DBGT_ERROR,"Number ended appruptly after exponent");
@@ -1034,97 +1061,100 @@ struct DynamicList* utf32dynlistToFloats_freeArg123(struct DynamicList* NumberSe
         OrderOfMagP,
         createCharMatchList(2,0x00,0xffff)
     );
-    uint32_t matchIndex=0;
     while(offsetInString<utf32StringInP->itemcnt){
         //no offset because will match all possible chars
-        getOffsetUntil(((uint32_t*)(utf32StringInP->items))+offsetInString,1,nummatch,&matchIndex);
-        if(matchIndex==match_res_nummatch_illegal){
-            dprintf(DBGT_ERROR,"Illegal Character in inputstring");
-            return 0;
-        }else if(matchIndex==match_res_nummatch_sign){
-            if(flagreg&flag_orOfMag){
-                flagreg|=flag_minus_exp;
-            }else if(flagreg==0){
-                flagreg|=flag_minus_mantis;
-            }else{
-                dprintf(DBGT_ERROR,"Unexpected Sign Char");
+        uint32_t matchIndex=MatchAndIncrement(utf32StringInP,&offsetInString,nummatch,0);
+        switch(matchIndex){
+            case match_res_nummatch_illegal:
+                dprintf(DBGT_ERROR,"Illegal Character in inputstring");
                 return 0;
-            }
-        }else if(matchIndex==match_res_nummatch_nseperator){
-            if(flagreg&flag_orOfMag){
-                dprintf(DBGT_ERROR,"Number ended appruptly after exponent");
-                return 0;
-            }
-            if(flagreg&flag_decplc){
-                dprintf(DBGT_ERROR,"Number ended appruptly after DecimalSeperator Char");
-                return 0;
-            }
-            if(flagreg&(flag_in_digits|flag_in_decplcdigits|flag_in_exp_digits)){
-                if(flagreg&flag_minus_mantis){
-                    mantisVal*=(-1.0);
+            break;
+            case match_res_nummatch_sign:
+                if(flagreg&flag_orOfMag){
+                    flagreg|=flag_minus_exp;
+                }else if(flagreg==0){
+                    flagreg|=flag_minus_mantis;
+                }else{
+                    dprintf(DBGT_ERROR,"Unexpected Sign Char");
+                    return 0;
                 }
-                if(flagreg&flag_minus_exp){
-                    exponVal*=(-1);
+            break;
+            case match_res_nummatch_nseperator:
+                if(flagreg&flag_orOfMag){
+                    dprintf(DBGT_ERROR,"Number ended appruptly after exponent");
+                    return 0;
                 }
-                exponVal-=NumOfDecplcDig;
-                mantisVal*=pow(10,exponVal);
-                DlAppend(&returnDynlistp,&mantisVal,sizeof(float),ListType_float);
-                flagreg=0;
-                NumOfDecplcDig=0;
-                mantisVal=0;
-                exponVal=0;
-            }
-        }else if(matchIndex==match_res_nummatch_dseperator){
-            if(flagreg&flag_in_digits){
-                flagreg|=flag_in_decplcdigits;         //enable in_decplcdigits flag
-                flagreg&= ~(flag_in_digits);    //disable in_digits flag
-            }else if(flagreg==0){               //to handle ".2"
-                flagreg|=flag_in_decplcdigits;
-                mantisVal=0;
-            }else{
-                if(flagreg&flag_in_exp_digits){
-                    dprintf(DBGT_ERROR,"unexpected decDigSeparator in exponent");
-                }else if(flagreg&flag_in_decplcdigits){
-                    dprintf(DBGT_ERROR,"more than one decDigSeperator in mantisse");
+                if(flagreg&flag_decplc){
+                    dprintf(DBGT_ERROR,"Number ended appruptly after DecimalSeperator Char");
+                    return 0;
                 }
-            }
-        }else if(matchIndex==match_res_nummatch_OrderOfMag){
-            if(flagreg&(flag_in_digits|flag_in_decplcdigits)){
-                flagreg|=flag_orOfMag;
-                flagreg&=~(flag_in_digits|flag_in_decplcdigits);    //clear flags
-            }else{
-                dprintf(DBGT_ERROR,"Unexpected Order of Magnitude Char");
-                return 0;
-            }
-        }else{      //Digit from 0-9
-            if(flagreg&flag_in_decplcdigits){
-                NumOfDecplcDig++;
-                mantisVal*=10;
-                mantisVal+=matchIndex;
-            }else if(flagreg&flag_decplc){
-                NumOfDecplcDig++;
-                flagreg|=flag_in_decplcdigits;
-                flagreg&=~(flag_decplc);
-                mantisVal*=10;
-                mantisVal+=matchIndex;
-            }else if(flagreg&flag_in_digits){
-                mantisVal*=10;
-                mantisVal+=matchIndex;
-            }else if(flagreg&flag_orOfMag){
-                exponVal=matchIndex;
-                flagreg|=flag_in_exp_digits;
-                flagreg&=~(flag_orOfMag);
-            }else if(flagreg&flag_in_exp_digits){
-                exponVal*=10;
-                exponVal+=matchIndex;
-            }else{
-                flagreg|=flag_in_digits;
-                mantisVal=matchIndex;
-            }
+                if(flagreg&(flag_in_digits|flag_in_decplcdigits|flag_in_exp_digits)){
+                    if(flagreg&flag_minus_mantis){
+                        mantisVal*=(-1.0);
+                    }
+                    if(flagreg&flag_minus_exp){
+                        exponVal*=(-1);
+                    }
+                    exponVal-=NumOfDecplcDig;
+                    mantisVal*=pow(10,exponVal);
+                    DlAppend(&returnDynlistp,&mantisVal,sizeof(double),ListType_double);
+                    flagreg=0;
+                    NumOfDecplcDig=0;
+                    mantisVal=0;
+                    exponVal=0;
+                }
+            break;
+            case match_res_nummatch_dseperator:
+                if(flagreg&flag_in_digits){
+                    flagreg|=flag_in_decplcdigits;         //enable in_decplcdigits flag
+                    flagreg&= ~(flag_in_digits);    //disable in_digits flag
+                }else if(flagreg==0){               //to handle ".2"
+                    flagreg|=flag_in_decplcdigits;
+                    mantisVal=0;
+                }else{
+                    if(flagreg&flag_in_exp_digits){
+                        dprintf(DBGT_ERROR,"unexpected decDigSeparator in exponent");
+                    }else if(flagreg&flag_in_decplcdigits){
+                        dprintf(DBGT_ERROR,"more than one decDigSeperator in mantisse");
+                    }
+                }
+            case match_res_nummatch_OrderOfMag:
+                if(flagreg&(flag_in_digits|flag_in_decplcdigits)){
+                    flagreg|=flag_orOfMag;
+                    flagreg&=~(flag_in_digits|flag_in_decplcdigits);    //clear flags
+                }else{
+                    dprintf(DBGT_ERROR,"Unexpected Order of Magnitude Char");
+                    return 0;
+                }
+            break;
+            default:
+                if(flagreg&flag_in_decplcdigits){
+                    NumOfDecplcDig++;
+                    mantisVal*=10;
+                    mantisVal+=matchIndex;
+                }else if(flagreg&flag_decplc){
+                    NumOfDecplcDig++;
+                    flagreg|=flag_in_decplcdigits;
+                    flagreg&=~(flag_decplc);
+                    mantisVal*=10;
+                    mantisVal+=matchIndex;
+                }else if(flagreg&flag_in_digits){
+                    mantisVal*=10;
+                    mantisVal+=matchIndex;
+                }else if(flagreg&flag_orOfMag){
+                    exponVal=matchIndex;
+                    flagreg|=flag_in_exp_digits;
+                    flagreg&=~(flag_orOfMag);
+                }else if(flagreg&flag_in_exp_digits){
+                    exponVal*=10;
+                    exponVal+=matchIndex;
+                }else{
+                    flagreg|=flag_in_digits;
+                    mantisVal=matchIndex;
+                }
+            break;
         }
-        offsetInString++;
     }
-
     //finish parsing last float
     if(flagreg&flag_orOfMag){
         dprintf(DBGT_ERROR,"Number ended appruptly after exponent");

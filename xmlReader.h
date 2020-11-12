@@ -20,6 +20,7 @@ enum {
     xmltype_pi      = 0x43, //processing instruction
     xmltype_tag     = 0x44, //subtag
     xmltype_cdata   = 0x45, //text not processed by parser
+    xmltype_chardata= 0x46 //text processed by parser inside elements
 };
 
 
