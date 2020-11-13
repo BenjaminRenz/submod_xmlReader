@@ -543,9 +543,11 @@ struct DynamicList* DlCombine(size_t sizeofListElements,struct DynamicList* Dynl
         dprintf(DBGT_INFO,"Attempted to concatenate lists of different types");
         return 0;
     }
-    size_t newDataSize=sizeofListElements*(Dynlist1P->itemcnt+Dynlist2P->itemcnt);
-    struct DynamicList* DynlistRP=(struct DynamicList*)malloc(sizeof(struct DynamicList*)+newDataSize);
-    memcpy(DynlistRP,Dynlist1P,sizeof(struct DynamicList*)+sizeofListElements*(Dynlist1P->itemcnt));
+    uint32_t newItemcnt=Dynlist1P->itemcnt+Dynlist2P->itemcnt;
+    struct DynamicList* DynlistRP=(struct DynamicList*)malloc(sizeof(struct DynamicList*)+newItemcnt*sizeofListElements);
+    DynlistRP->itemcnt=newItemcnt;
+    DynlistRP->type=Dynlist1P->type;
+    memcpy(DynlistRP->items,Dynlist1P->items,sizeofListElements*(Dynlist1P->itemcnt));
     DynlistRP->items=(&(DynlistRP[1]));
     memcpy((char*)(DynlistRP->items)+DynlistRP->itemcnt,Dynlist2P->items,Dynlist2P->itemcnt*sizeofListElements);
     return(DynlistRP);
