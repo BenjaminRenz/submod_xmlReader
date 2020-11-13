@@ -5,7 +5,7 @@
 #include <math.h>       //for pow
 #include <debug.h>
 
-void DlAppend(struct DynamicList** ListOrNullpp,void* newElementp,size_t sizeofListElements,uint32_t typeId){      //Destroys old pointer and returns new pointer, user needs to update all pointers referring to this object
+void DlAppend(size_t sizeofListElements,struct DynamicList** ListOrNullpp,void* newElementp,uint32_t typeId){      //Destroys old pointer and returns new pointer, user needs to update all pointers referring to this object
     if(!ListOrNullpp){
         dprintf(DBGT_ERROR,"argument cant be nullptr");
         exit(-1);
@@ -518,7 +518,7 @@ struct xmlTreeElement* getFirstSubelementWith(struct xmlTreeElement* startElemen
     return NULL;
 };
 
-struct DynamicList* DlDuplicate(struct DynamicList* inDynlistP){
+struct DynamicList* DlDuplicate(size_t sizeofListElements,struct DynamicList* inDynlistP){
     if(!inDynlistP){
         dprintf(DBGT_ERROR,"Called with Nullptr");
         return 0;
@@ -527,13 +527,13 @@ struct DynamicList* DlDuplicate(struct DynamicList* inDynlistP){
         dprintf(DBGT_ERROR,"currently unsupported list type");
         return 0;
     }
-    struct DynamicList* newDynlistP=(struct DynamicList*)malloc(sizeof(struct DynamicList)+sizeof(void*)*(inDynlistP->itemcnt));
-    memcpy(newDynlistP,inDynlistP,sizeof(struct DynamicList)+sizeof(void*)*(inDynlistP->itemcnt));
+    struct DynamicList* newDynlistP=(struct DynamicList*)malloc(sizeof(struct DynamicList)+sizeofListElements*(inDynlistP->itemcnt));
+    memcpy(newDynlistP,inDynlistP,sizeof(struct DynamicList)+sizeofListElements*(inDynlistP->itemcnt));
     newDynlistP->items=(&(newDynlistP[1]));
     return newDynlistP;
 }
 
-struct DynamicList* DlCombine(struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P){
+struct DynamicList* DlCombine(size_t sizeofListElements,struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P){
     //check if of same type
     if(!Dynlist1P||!Dynlist2P){
         dprintf(DBGT_INFO,"Called with one Nullptr");
@@ -543,28 +543,28 @@ struct DynamicList* DlCombine(struct DynamicList* Dynlist1P,struct DynamicList* 
         dprintf(DBGT_INFO,"Attempted to concatenate lists of different types");
         return 0;
     }
-    size_t newDataSize=Dynlist1P->itemcnt+Dynlist2P->itemcnt;
-    struct DynamicList* DynlistRP=(struct DynamicList*)malloc(sizeof(struct DynamicList*)+sizeof(void*)*(newDataSize));
-    memcpy(DynlistRP,Dynlist1P,sizeof(struct DynamicList*)+sizeof(void*)*(Dynlist1P->itemcnt));
+    size_t newDataSize=sizeofListElements*(Dynlist1P->itemcnt+Dynlist2P->itemcnt);
+    struct DynamicList* DynlistRP=(struct DynamicList*)malloc(sizeof(struct DynamicList*)+newDataSize);
+    memcpy(DynlistRP,Dynlist1P,sizeof(struct DynamicList*)+sizeofListElements*(Dynlist1P->itemcnt));
     DynlistRP->items=(&(DynlistRP[1]));
-    memcpy(DynlistRP->items+DynlistRP->itemcnt,Dynlist2P->items,Dynlist2P->itemcnt*sizeof(void*));
+    memcpy((char*)(DynlistRP->items)+DynlistRP->itemcnt,Dynlist2P->items,Dynlist2P->itemcnt*sizeofListElements);
     return(DynlistRP);
 }
 
-struct DynamicList* DlCombine_freeArg1(struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P){
-    struct DynamicList* DynlistRP=DlCombine(Dynlist1P,Dynlist2P);
+struct DynamicList* DlCombine_freeArg1(size_t sizeofListElements,struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P){
+    struct DynamicList* DynlistRP=DlCombine(sizeofListElements,Dynlist1P,Dynlist2P);
     DlDelete(Dynlist1P);
     return(DynlistRP);
 }
 
-struct DynamicList* DlCombine_freeArg2(struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P){
-    struct DynamicList* DynlistRP=DlCombine(Dynlist1P,Dynlist2P);
+struct DynamicList* DlCombine_freeArg2(size_t sizeofListElements,struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P){
+    struct DynamicList* DynlistRP=DlCombine(sizeofListElements,Dynlist1P,Dynlist2P);
     DlDelete(Dynlist2P);
     return(DynlistRP);
 }
 
-struct DynamicList* DlCombine_freeArg12(struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P){
-    struct DynamicList* DynlistRP=DlCombine(Dynlist1P,Dynlist2P);
+struct DynamicList* DlCombine_freeArg12(size_t sizeofListElements,struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P){
+    struct DynamicList* DynlistRP=DlCombine(sizeofListElements,Dynlist1P,Dynlist2P);
     DlDelete(Dynlist1P);
     DlDelete(Dynlist2P);
     return(DynlistRP);
@@ -631,7 +631,7 @@ struct DynamicList* getSubelementsWith(struct xmlTreeElement* startElementp,stru
                    (!KeyDynlistP    ||(ValUtf32P=getValueFromKeyName(xmlToCheckElementP->attributes,KeyDynlistP)))){
                    //check in case we searched for a key, that if there is a matching value specified, it is also ok
                    if(!ValUtf32P||!ValueDynlistP||compareEqualDynamicUTF32List(ValUtf32P,ValueDynlistP)){
-                        DlAppend(&returnDynList,(void**)&xmlToCheckElementP,sizeof(struct xmlTreeElement*),dynlisttype_xmlELMNTCollectionp);
+                        DlAppend(sizeof(struct xmlTreeElement*),&returnDynList,(void**)&xmlToCheckElementP,dynlisttype_xmlELMNTCollectionp);
                    }
                 }
                 if(currentDepth<maxDepth){ //make sure our programm stops scanning for new elements if the maxdepth is reached
@@ -694,7 +694,7 @@ struct DynamicList* getSubelementsWithCheckFunc(uint32_t (*checkfkt)(struct xmlT
         if(CurrentXMLTreeElement->parent==LastXMLTreeElement){      //walk deeper
             for(;index<itemcnt;index++){
                 if((*checkfkt)(((struct xmlTreeElement**)CurrentXMLTreeElement->content->items)[index])){
-                    DlAppend(&returnDynList,(void**)&(((struct xmlTreeElement**)CurrentXMLTreeElement->content->items)[index]),sizeof(struct xmlTreeElement*),dynlisttype_xmlELMNTCollectionp);
+                    DlAppend(sizeof(struct xmlTreeElement*),&returnDynList,(void**)&(((struct xmlTreeElement**)CurrentXMLTreeElement->content->items)[index]),dynlisttype_xmlELMNTCollectionp);
                 }
                 if(currentDepth<maxDepth){ //make sure our programm stops scanning for new elements if the maxdepth is reached
                     if(((struct xmlTreeElement**)CurrentXMLTreeElement->content->items)[index]->type==xmltype_tag){  //One valid subelement found
@@ -763,7 +763,7 @@ uint32_t nameCheckFkt(struct xmlTreeElement* nameInit_or_xmlElement){
 
 
 struct DynamicList* utf32dynlistToInts(struct DynamicList* NumberSeperatorP,struct DynamicList* utf32StringInP){
-    return utf32dynlistToInts_freeArg1(DlDuplicate(NumberSeperatorP),utf32StringInP);
+    return utf32dynlistToInts_freeArg1(DlDuplicate(sizeof(uint32_t),NumberSeperatorP),utf32StringInP);
 }
 
 struct DynamicList* utf32dynlistToInts_freeArg1(struct DynamicList* NumberSeperatorP,struct DynamicList* utf32StringInP){
@@ -827,7 +827,7 @@ struct DynamicList* utf32dynlistToInts_freeArg1(struct DynamicList* NumberSepera
                     if(flagreg&flag_minus_mantis){
                         mantisVal*=(-1);
                     }
-                    DlAppend(&returnDynlistp,&mantisVal,sizeof(double),ListType_double);
+                    DlAppend(sizeof(double),&returnDynlistp,&mantisVal,ListType_double);
                     flagreg=0;
                     mantisVal=0;
                 }
@@ -843,7 +843,7 @@ struct DynamicList* utf32dynlistToInts_freeArg1(struct DynamicList* NumberSepera
         if(flagreg&flag_minus_mantis){
             mantisVal*=(-1);
         }
-        DlAppend(&returnDynlistp,&mantisVal,sizeof(double),ListType_double);
+        DlAppend(sizeof(double),&returnDynlistp,&mantisVal,ListType_double);
     }
     DlDelete(nummatch);
     return returnDynlistp;
@@ -851,7 +851,7 @@ struct DynamicList* utf32dynlistToInts_freeArg1(struct DynamicList* NumberSepera
 
 
 struct DynamicList* utf32dynlistToDoubles(struct DynamicList* NumberSeperatorP,struct DynamicList* OrderOfMagP, struct DynamicList* DecimalSeperatorP,struct DynamicList* utf32StringInP){
-    return utf32dynlistToDoubles_freeArg123(DlDuplicate(NumberSeperatorP),DlDuplicate(OrderOfMagP),DlDuplicate(DecimalSeperatorP),utf32StringInP);
+    return utf32dynlistToDoubles_freeArg123(DlDuplicate(sizeof(uint32_t),NumberSeperatorP),DlDuplicate(sizeof(uint32_t),OrderOfMagP),DlDuplicate(sizeof(uint32_t),DecimalSeperatorP),utf32StringInP);
 }
 
 struct DynamicList* utf32dynlistToDoubles_freeArg123(struct DynamicList* NumberSeperatorP,struct DynamicList* OrderOfMagP, struct DynamicList* DecimalSeperatorP,struct DynamicList* utf32StringInP){
@@ -932,7 +932,7 @@ struct DynamicList* utf32dynlistToDoubles_freeArg123(struct DynamicList* NumberS
                     }
                     exponVal-=NumOfDecplcDig;
                     mantisVal*=pow(10,exponVal);
-                    DlAppend(&returnDynlistp,&mantisVal,sizeof(double),ListType_double);
+                    DlAppend(sizeof(double),&returnDynlistp,&mantisVal,ListType_double);
                     flagreg=0;
                     NumOfDecplcDig=0;
                     mantisVal=0;
@@ -1008,14 +1008,14 @@ struct DynamicList* utf32dynlistToDoubles_freeArg123(struct DynamicList* NumberS
         }
         exponVal-=NumOfDecplcDig;
         mantisVal*=pow(10,exponVal);
-        DlAppend(&returnDynlistp,&mantisVal,sizeof(double),ListType_double);
+        DlAppend(sizeof(double),&returnDynlistp,&mantisVal,ListType_double);
     }
     DlDelete(nummatch);       //TODO fix for all return types
     return returnDynlistp;
 }
 
 struct DynamicList* utf32dynlistToFloats(struct DynamicList* NumberSeperatorP,struct DynamicList* OrderOfMagP, struct DynamicList* DecimalSeperatorP,struct DynamicList* utf32StringInP){
-    return utf32dynlistToFloats_freeArg123(DlDuplicate(NumberSeperatorP),DlDuplicate(OrderOfMagP),DlDuplicate(DecimalSeperatorP),utf32StringInP);
+    return utf32dynlistToFloats_freeArg123(DlDuplicate(sizeof(uint32_t),NumberSeperatorP),DlDuplicate(sizeof(uint32_t),OrderOfMagP),DlDuplicate(sizeof(uint32_t),DecimalSeperatorP),utf32StringInP);
 }
 
 
@@ -1097,7 +1097,7 @@ struct DynamicList* utf32dynlistToFloats_freeArg123(struct DynamicList* NumberSe
                     }
                     exponVal-=NumOfDecplcDig;
                     mantisVal*=pow(10,exponVal);
-                    DlAppend(&returnDynlistp,&mantisVal,sizeof(double),ListType_double);
+                    DlAppend(sizeof(double),&returnDynlistp,&mantisVal,ListType_double);
                     flagreg=0;
                     NumOfDecplcDig=0;
                     mantisVal=0;
@@ -1173,7 +1173,7 @@ struct DynamicList* utf32dynlistToFloats_freeArg123(struct DynamicList* NumberSe
         }
         exponVal-=NumOfDecplcDig;
         mantisVal*=pow(10,exponVal);
-        DlAppend(&returnDynlistp,&mantisVal,sizeof(float),ListType_float);
+        DlAppend(sizeof(float),&returnDynlistp,&mantisVal,ListType_float);
     }
     DlDelete(nummatch);       //TODO fix for all return types
     return returnDynlistp;

@@ -25,6 +25,11 @@ enum {  dynlisttype_utf32chars=54,          //items of type uint32_t (utf32 char
         ListType_TexturePointer
 };
 
+/*Important!! since DynamicList stores either uint32_t or void* which can have different size
+always allocate a mininmum of itemcnt*DynlistElementSize bytes for each element.
+This means that uint32_t lists on x64 are twice as large as the would need to be
+*/
+#define DynlistElementSize (max(sizeof(uint32_t),sizeof(void*))
 struct DynamicList{
     uint32_t type;
     uint32_t itemcnt;
@@ -35,12 +40,12 @@ struct DynamicList{
 //Note on the function syntax, the functions are in camelCase, and a trailing _freeArgXYZ signifies that the function frees the memory for the element passed as argument with number X,Y and Z.
 
 struct DynamicList* DlCreate            (size_t sizeofListElements,uint32_t NumOfNewElements,uint32_t typeId);
-struct DynamicList* DlDuplicate         (struct DynamicList* inDynlistP);
-void                DlAppend            (struct DynamicList** ListOrNullPtr,void* newElement,size_t sizeofListElements,uint32_t typeId);
-struct DynamicList* DlCombine           (struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P);
-struct DynamicList* DlCombine_freeArg1  (struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P);
-struct DynamicList* DlCombine_freeArg2  (struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P);
-struct DynamicList* DlCombine_freeArg12 (struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P);
+struct DynamicList* DlDuplicate         (size_t sizeofListElements,struct DynamicList* inDynlistP);
+void                DlAppend            (size_t sizeofListElements,struct DynamicList** ListOrNullPtr,void* newElement,uint32_t typeId);
+struct DynamicList* DlCombine           (size_t sizeofListElements,struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P);
+struct DynamicList* DlCombine_freeArg1  (size_t sizeofListElements,struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P);
+struct DynamicList* DlCombine_freeArg2  (size_t sizeofListElements,struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P);
+struct DynamicList* DlCombine_freeArg12 (size_t sizeofListElements,struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P);
 void                DlDelete            (struct DynamicList* DynListPtr);
 
 uint32_t compareEqualDynamicUTF32List(struct DynamicList* List1UTF32,struct DynamicList* List2UTF32);
