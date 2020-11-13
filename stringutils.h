@@ -25,11 +25,6 @@ enum {  dynlisttype_utf32chars=54,          //items of type uint32_t (utf32 char
         ListType_TexturePointer
 };
 
-/*Important!! since DynamicList stores either uint32_t or void* which can have different size
-always allocate a mininmum of itemcnt*DynlistElementSize bytes for each element.
-This means that uint32_t lists on x64 are twice as large as the would need to be
-*/
-#define DynlistElementSize (max(sizeof(uint32_t),sizeof(void*))
 struct DynamicList{
     uint32_t type;
     uint32_t itemcnt;
@@ -59,7 +54,6 @@ struct DynamicList* createCharMatchList(uint32_t argumentCount,...);
 struct DynamicList* createWordMatchList(uint32_t argumentCount,...);
 struct DynamicList* createMultiWordMatchList(uint32_t argumentCount,...);
 struct DynamicList* createMultiCharMatchList(uint32_t argumentCount,...);
-struct DynamicList* stringToUTF32Dynlist(char* inputString);
 
 
 //internal xml reader functions

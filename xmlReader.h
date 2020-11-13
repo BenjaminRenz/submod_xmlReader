@@ -28,7 +28,6 @@ enum {
 int readXML(FILE* xmlFile,struct xmlTreeElement** returnDocumentRoot);
 int writeXML(FILE* xmlOutFile,struct xmlTreeElement* inputDocumentRoot);
 void printXMLsubelements(struct xmlTreeElement* xmlElement);
-uint32_t compareEqualDynamicUTF32List(struct DynamicList* List1UTF32,struct DynamicList* List2UTF32);
 
 
 #endif // XMLREADER_H_INCLUDED

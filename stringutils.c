@@ -544,12 +544,12 @@ struct DynamicList* DlCombine(size_t sizeofListElements,struct DynamicList* Dynl
         return 0;
     }
     uint32_t newItemcnt=Dynlist1P->itemcnt+Dynlist2P->itemcnt;
-    struct DynamicList* DynlistRP=(struct DynamicList*)malloc(sizeof(struct DynamicList*)+newItemcnt*sizeofListElements);
+    struct DynamicList* DynlistRP=(struct DynamicList*)malloc(sizeof(struct DynamicList)+newItemcnt*sizeofListElements);
     DynlistRP->itemcnt=newItemcnt;
     DynlistRP->type=Dynlist1P->type;
     memcpy(DynlistRP->items,Dynlist1P->items,sizeofListElements*(Dynlist1P->itemcnt));
     DynlistRP->items=(&(DynlistRP[1]));
-    memcpy((char*)(DynlistRP->items)+DynlistRP->itemcnt,Dynlist2P->items,Dynlist2P->itemcnt*sizeofListElements);
+    memcpy(((char*)(DynlistRP->items))+sizeofListElements*(DynlistRP->itemcnt),Dynlist2P->items,sizeofListElements*(Dynlist2P->itemcnt));
     return(DynlistRP);
 }
 
@@ -955,6 +955,7 @@ struct DynamicList* utf32dynlistToDoubles_freeArg123(struct DynamicList* NumberS
                         dprintf(DBGT_ERROR,"more than one decDigSeperator in mantisse");
                     }
                 }
+            //TODO check if this fallthrough is wanted
             case match_res_nummatch_OrderOfMag:
                 if(flagreg&(flag_in_digits|flag_in_decplcdigits)){
                     flagreg|=flag_orOfMag;

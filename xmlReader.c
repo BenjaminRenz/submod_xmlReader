@@ -20,6 +20,7 @@ enum {  ////errorcodes
 
 int match_xmldecl(struct DynamicList* xmlFileDyn,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResults);
 int match_doctypedecl(struct DynamicList* xmlFileDyn,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResults);
+int parseAttrib(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResults,struct DynamicList* MWM_EndTagDlP);
 
 enum{misc_ret_charLeft=0, misc_ret_eof=1};
 int match_misc(struct DynamicList* xmlFileDyn,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResults);
@@ -130,7 +131,7 @@ int match_loop(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct 
                         CharDataEndOffset--;
                     }
                 }
-                if(CharDataStartOffset!=CharDataEndOffset){
+                if(CharDataStartOffset<CharDataEndOffset){
                     //there was valid chardata
                     dprintf(DBGT_INFO,"length %d",CharDataEndOffset-CharDataStartOffset);
                     struct xmlTreeElement* newCharDataElementP=(struct xmlTreeElement*)malloc(sizeof(struct xmlTreeElement));
@@ -181,7 +182,6 @@ int parseDoctype(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struc
 
 }
 
-int parseAttrib(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResults,struct DynamicList* MWM_EndTagDlP);
 //return indicates unexpected eof
 int parseNameAndAttrib(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResults,struct DynamicList* MWM_EndTagDlP){
     uint32_t nameStartOffset=(*offsetInXMLfilep)-1; //the previous matcher also checked for a valid name start character
