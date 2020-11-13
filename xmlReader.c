@@ -89,6 +89,7 @@ int match_loop(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct 
             break;
             case MWMstart_res_element_end:
                 //TODO check if closing element actually matches
+                (*offsetInXMLfilep)+=ObjectToAttachResults->name->itemcnt+1;   //we have matched the first name character
                 ObjectToAttachResults=ObjectToAttachResults->parent;
             break;
             case MWMstart_res_element_start:;
@@ -103,7 +104,7 @@ int match_loop(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct 
                 enum{MWMres_el_etag_nonEmpty=0,MWMres_el_etag_empty=1};
                 switch(parseNameAndAttrib(xmlFileDlP,offsetInXMLfilep,newXmlElementP,MWM_element_end)){
                     case MWMres_el_etag_nonEmpty:
-
+                        dprintf(DBGT_INFO,"Now one layer deeper");
                     break;
                     case MWMres_el_etag_empty:
                         ObjectToAttachResults=ObjectToAttachResults->parent;
@@ -133,19 +134,14 @@ int match_loop(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct 
                 }
                 if(CharDataStartOffset<CharDataEndOffset){
                     //there was valid chardata
-                    dprintf(DBGT_INFO,"length %d",CharDataEndOffset-CharDataStartOffset);
                     struct xmlTreeElement* newCharDataElementP=(struct xmlTreeElement*)malloc(sizeof(struct xmlTreeElement));
-                    dprintf(DBGT_INFO,"Creating new xml element for chardata");
+                    dprintf(DBGT_INFO,"Creating new xml element for chardata of length %d",CharDataEndOffset-CharDataStartOffset);
                     newCharDataElementP->attributes=DlCreate(sizeof(struct key_val_pair*),0,dynlisttype_keyValuePairsp);
                     newCharDataElementP->name=DlCreate(sizeof(uint32_t),0,dynlisttype_utf32chars);
                     newCharDataElementP->parent=ObjectToAttachResults;
                     newCharDataElementP->type=xmltype_chardata;
-                    dprintf(DBGT_INFO,"Attaching");
                     struct DynamicList* tempDynlistDlP=DlCreate(sizeof(uint32_t),CharDataEndOffset-CharDataStartOffset,dynlisttype_utf32chars);
-                    dprintf(DBGT_INFO,"Attaching2");
                     newCharDataElementP->content=tempDynlistDlP;
-                    dprintf(DBGT_INFO,"Starting copy of data");
-                    dprintf(DBGT_INFO,"type of content %d",newCharDataElementP->content->type);
                     memcpy(newCharDataElementP->content->items,(uint32_t*)(xmlFileDlP->items)+CharDataStartOffset,sizeof(uint32_t)*(CharDataEndOffset-CharDataStartOffset));
                     printUTF32Dynlist(newCharDataElementP->content);
                     DlAppend(sizeof(struct xmlTreeElement),&(ObjectToAttachResults->content),newCharDataElementP,dynlisttype_xmlELMNTCollectionp);
@@ -193,7 +189,8 @@ int parseNameAndAttrib(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep
         dprintf(DBGT_ERROR,"Invalid character in element name");
         return -1;
     }else{
-        (*offsetInXMLfilep)+=MWM_EndTagDlP->itemcnt;
+        uint32_t lengthOfApplyingEndTag=((struct DynamicList**)(MWM_EndTagDlP->items))[matchResult]->itemcnt;
+        (*offsetInXMLfilep)+=lengthOfApplyingEndTag;
     }
     struct DynamicList* nameDlP=DlCreate(sizeof(uint32_t),nameEndOffset-nameStartOffset,dynlisttype_utf32chars);
     memcpy(nameDlP->items,(uint32_t*)(xmlFileDlP->items)+nameStartOffset,sizeof(uint32_t)*(nameEndOffset-nameStartOffset));
@@ -342,7 +339,7 @@ struct DynamicList* ClosingTagFromDynList(struct DynamicList* utf32DynListIn){
     return w_match_list;
 }
 
-/*
+
 int writeXML(FILE* xmlOutFile,struct xmlTreeElement* inputDocumentRootP){
     struct DynamicList* utf32XmlDlP=xmlDOMtoUTF32(inputDocumentRootP,4);
     uint8_t* datap=(uint8_t*)malloc(sizeof(uint8_t)*4*utf32XmlDlP->itemcnt);
@@ -363,111 +360,99 @@ struct DynamicList* xmlDOMtoUTF32(struct xmlTreeElement* startingElement, int nu
     struct xmlTreeElement* LastXMLTreeElement=startingElement->parent;
     struct xmlTreeElement* CurrentXMLTreeElement=startingElement;
     uint32_t currentDepth=0;        //for indentation
-    uint32_t subindex=0;
+    uint32_t subindex=0;            //which child node is currently processed
     int writeOpeningTagToggle=1;
     do{
-        uint32_t itemcnt;
-        if(CurrentXMLTreeElement->content==0){
-            itemcnt=0;
-        }else{
-            itemcnt=CurrentXMLTreeElement->content->itemcnt;
-        }
+        uint32_t itemcnt=;
         if(CurrentXMLTreeElement->parent==LastXMLTreeElement){      //walk deeper
             if(writeOpeningTagToggle){//-------write start tag, attributes
-                //write start of start tag
-                //calculate space requirements
-                uint32_t requieredChars=1+numSpacesIndent*currentDepth+1+(CurrentXMLTreeElement->name->itemcnt);//for 1*"\n", 1*"<", name
-                //allocate storage
-                tempUTF32String=realloc(tempUTF32String,sizeof(uint32_t)*(numUTF32Chars+requieredChars));
                 //write changes
-                tempUTF32String[numUTF32Chars++]='\n';
-                for(uint32_t i=0;i<numSpacesIndent*currentDepth;i++){
-                    tempUTF32String[numUTF32Chars++]=' ';
+                struct DynamicList* spacesDlP=DlCreate(sizeof(uint32_t),1+numSpacesIndent*currentDepth+1,dynlisttype_utf32chars);
+                (uint32_t*)(spacesDlP->items)[0]='\n';
+                for(uint32_t i=1;i<=numSpacesIndent*currentDepth;i++){
+                    (uint32_t*)(spacesDlP->items)[i]=' ';
                 }
-                tempUTF32String[numUTF32Chars++]='<';
-                memcpy(tempUTF32String+numUTF32Chars,CurrentXMLTreeElement->name->items,sizeof(uint32_t)*CurrentXMLTreeElement->name->itemcnt);
+                tempUTF32String[numSpacesIndent*currentDepth+1]='<';
+                returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,spacesDlP);
+                returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,CurrentXMLTreeElement->name);
                 printf("name: %s\n",utf32dynlist_to_string(CurrentXMLTreeElement->name));
-                numUTF32Chars+=CurrentXMLTreeElement->name->itemcnt;
-                if(CurrentXMLTreeElement->attributes){      //check if element even has attributes
-                    for(uint32_t attributenum=0; attributenum<CurrentXMLTreeElement->attributes->itemcnt; attributenum++){
-                        printf("test");
-                        struct DynamicList* KeyDynlistp=(((struct key_val_pair*)CurrentXMLTreeElement->attributes->items)[attributenum]).key;     //Problematic segfault
-                        struct DynamicList* ValDynlistp=(((struct key_val_pair*)CurrentXMLTreeElement->attributes->items)[attributenum]).value;
-                        //calculate space requirements
-                        printf("key: %s\n",utf32dynlist_to_string(KeyDynlistp));
-                        printf("val: %s\n",utf32dynlist_to_string(ValDynlistp));
-                        requieredChars=1+KeyDynlistp->itemcnt+1+1+ValDynlistp->itemcnt+1;        //for key, 1x" ", 1x"=", 1x"\"", value, 1x"\""
-                        //allocate storage
-                        tempUTF32String=realloc(tempUTF32String,sizeof(uint32_t)*(numUTF32Chars+requieredChars));
-                        tempUTF32String[numUTF32Chars++]=' ';
-                        //Write key
-                        memcpy(tempUTF32String+numUTF32Chars,KeyDynlistp->items,sizeof(uint32_t)*KeyDynlistp->itemcnt);
-                        numUTF32Chars+=KeyDynlistp->itemcnt;
-                        tempUTF32String[numUTF32Chars++]='=';
-                        tempUTF32String[numUTF32Chars++]='"';
-                        //Write value
-                        memcpy(tempUTF32String+numUTF32Chars,ValDynlistp->items,sizeof(uint32_t)*ValDynlistp->itemcnt);
-                        numUTF32Chars+=ValDynlistp->itemcnt;
-                        tempUTF32String[numUTF32Chars++]='"';
-                    }
+                for(uint32_t attributenum=0; attributenum<CurrentXMLTreeElement->attributes->itemcnt; attributenum++){
+                    struct DynamicList* KeyDynlistp=(((struct key_val_pair*)CurrentXMLTreeElement->attributes->items)[attributenum]).key;     //Problematic segfault
+                    struct DynamicList* ValDynlistp=(((struct key_val_pair*)CurrentXMLTreeElement->attributes->items)[attributenum]).value;
+                    returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist(" "));
+                    returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,KeyDynlistp);
+                    returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("=\""));
+                    returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,ValDynlistp);
+                    returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("\""));
                 }
-                if(itemcnt){            //we have some subtags
-                    tempUTF32String=realloc(tempUTF32String,sizeof(uint32_t)*(numUTF32Chars+1));
-                    tempUTF32String[numUTF32Chars++]='>';
+                if(CurrentXMLTreeElement->content->itemcnt){            //we have some subtags
+                    returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist(">"));
                 }else{
-                    tempUTF32String=realloc(tempUTF32String,sizeof(uint32_t)*(numUTF32Chars+2));
-                    tempUTF32String[numUTF32Chars++]='/';
-                    tempUTF32String[numUTF32Chars++]='>';
+                    returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("/>"));
                 }
             }//-------write start tag, attributes end
             writeOpeningTagToggle=1;
             #define maxDepthTMP 100
-            for(;(subindex<itemcnt)&&(currentDepth<maxDepthTMP);subindex++){        //go over all subelements that are not to deeply nested
-                if(((struct xmlTreeElement**)CurrentXMLTreeElement->content->items)[subindex]->type==xmltype_tag){  //One valid subelement found
-                    LastXMLTreeElement=CurrentXMLTreeElement;
-                    CurrentXMLTreeElement=((struct xmlTreeElement**)CurrentXMLTreeElement->content->items)[subindex];
-                    subindex=0;
-                    currentDepth++;
-                    //TODO? This tests only elements of xmltype_tag
+            for(;(subindex<CurrentXMLTreeElement->content->itemcnt)&&(currentDepth<maxDepthTMP);subindex++){        //go over all subelements that are not to deeply nested
+                struct xmlTreeElement* xmlSubElement=(struct xmlTreeElement**)CurrentXMLTreeElement->content->items)[subindex]
+                switch(xmlSubElement->type){
+                    case xmltype_tag:   //walk inside the new child element
+                        LastXMLTreeElement=CurrentXMLTreeElement;
+                        CurrentXMLTreeElement=((struct xmlTreeElement**)CurrentXMLTreeElement->content->items)[subindex];
+                        subindex=0;
+                        currentDepth++;
                     break;
-                }else{
-                    //-------write Comments, Pi
-                    dprintf(DBGT_ERROR,"Non standard tag"); //like comment or other chardata
+                    case xmltype_cdata:
+                        //test to confirm no < or & characters are inside
+                        returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,xmlSubElement->content);
+                    break;
+                    case xmltype_chardata:
+                        returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("<![CDATA["));
+                        returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,xmlSubElement->content);
+                        returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("]]>"));
+                    break;
+                    case xmltype_comment:
+                        returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("<!--"));
+                        returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,xmlSubElement->content);
+                        returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("-->"));
+                    break;
+                    case xmltype_pi:
+                        returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("<?"));
+                        returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,xmlSubElement->content);
+                        returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("?>"));
+                    break;
+                    default:
+                        dprintf(DBGT_ERROR,"Tag of this type is not handeled");
+                    break;
                 }
             }
         }else{      //go back upward
-            for(subindex=0;(subindex<itemcnt)&&(LastXMLTreeElement!=((struct xmlTreeElement**)CurrentXMLTreeElement->content->items)[subindex]);subindex++){     //go over all subelements of our parent and search ourself
+            for(subindex=0;(subindex<CurrentXMLTreeElement->content->itemcnt)&&(LastXMLTreeElement!=((struct xmlTreeElement**)CurrentXMLTreeElement->content->items)[subindex]);subindex++){     //go over all subelements of our parent and search ourself
             }
             currentDepth--;
-            if(++subindex<itemcnt){  //Do we have more elements in the current Element, (assume one more element, if this is more than the elements in our parent then we have scanned the last element)
+            if(++subindex<CurrentXMLTreeElement->content->itemcnt){  //Do we have more elements in the current Element, (assume one more element, if this is more than the elements in our parent then we have scanned the last element)
                 LastXMLTreeElement=CurrentXMLTreeElement->parent;
             }else{
                 {//-------write closing tag
-                    //calculate space requirements
-                    uint32_t requieredChars=1+numSpacesIndent*currentDepth+1+1+(CurrentXMLTreeElement->name->itemcnt)+1;//for 1*"\n", 1*"<", 1*"/", name 1*">"
-                    //allocate storage
-                    tempUTF32String=realloc(tempUTF32String,sizeof(uint32_t)*(numUTF32Chars+requieredChars));
-                    tempUTF32String[numUTF32Chars++]='\n';
-                    for(uint32_t i=0;i<numSpacesIndent*currentDepth;i++){
-                        tempUTF32String[numUTF32Chars++]=' ';
+                    struct DynamicList* spacesDlP=DlCreate(sizeof(uint32_t),1+numSpacesIndent*currentDepth+2,dynlisttype_utf32chars);
+                    (uint32_t*)(spacesDlP->items)[0]='\n';
+                    for(uint32_t i=1;i<=numSpacesIndent*currentDepth;i++){
+                        (uint32_t*)(spacesDlP->items)[i]=' ';
                     }
-                    tempUTF32String[numUTF32Chars++]='<';
-                    tempUTF32String[numUTF32Chars++]='/';
-                    memcpy(tempUTF32String+numUTF32Chars,CurrentXMLTreeElement->name->items,sizeof(uint32_t)*CurrentXMLTreeElement->name->itemcnt);
-                    numUTF32Chars+=CurrentXMLTreeElement->name->itemcnt;
-                    tempUTF32String[numUTF32Chars++]='>';
+                    (uint32_t*)(spacesDlP->items)[numSpacesIndent*currentDepth+1]='<';
+                    (uint32_t*)(spacesDlP->items)[numSpacesIndent*currentDepth+2]='/';
+                    returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,CurrentXMLTreeElement->name);
+                    returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist(">"));
                 }
-                subindex=itemcnt;    //a for loop would have set subindex to itemcnt in its last iteration -> further upward is true
+                subindex=CurrentXMLTreeElement->content->itemcnt;    //a for loop would have set subindex to itemcnt in its last iteration -> further upward is true
             }
         }
-        if(subindex==itemcnt){//Turn around/further upward
+        if(subindex==CurrentXMLTreeElement->content->itemcnt){//Turn around/further upward
             writeOpeningTagToggle=0;
             LastXMLTreeElement=CurrentXMLTreeElement;
             CurrentXMLTreeElement=CurrentXMLTreeElement->parent;
         }
     }while((CurrentXMLTreeElement!=0)&&(CurrentXMLTreeElement!=inputDocumentRoot));     //Todo error with abort condition when starting from subelement
-
-
 }
 
 //TODO does miss the upper layer of elements

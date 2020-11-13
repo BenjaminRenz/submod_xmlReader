@@ -262,7 +262,6 @@ int MatchAndIncrement(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP
     if(matchIdx<0){
         return matchIdx;
     }
-    dprintf(DBGT_INFO,"match index: %d",matchIdx);
     if(breakIfMatchDlP->type==ListType_CharMatch||breakIfMatchDlP->type==ListType_MultiCharMatchp){ //shift by one character
         (*InOutIndexP)++;
         return matchIdx;
@@ -549,7 +548,7 @@ struct DynamicList* DlCombine(size_t sizeofListElements,struct DynamicList* Dynl
     DynlistRP->type=Dynlist1P->type;
     memcpy(DynlistRP->items,Dynlist1P->items,sizeofListElements*(Dynlist1P->itemcnt));
     DynlistRP->items=(&(DynlistRP[1]));
-    memcpy(((char*)(DynlistRP->items))+sizeofListElements*(DynlistRP->itemcnt),Dynlist2P->items,sizeofListElements*(Dynlist2P->itemcnt));
+    memcpy(((char*)(DynlistRP->items))+sizeofListElements*(Dynlist1P->itemcnt),Dynlist2P->items,sizeofListElements*(Dynlist2P->itemcnt));
     return(DynlistRP);
 }
 
