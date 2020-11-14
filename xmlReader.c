@@ -339,7 +339,7 @@ struct DynamicList* ClosingTagFromDynList(struct DynamicList* utf32DynListIn){
     return w_match_list;
 }
 
-
+struct DynamicList* xmlDOMtoUTF32(struct xmlTreeElement* startingElement, int numSpacesIndent);
 int writeXML(FILE* xmlOutFile,struct xmlTreeElement* inputDocumentRootP){
     struct DynamicList* utf32XmlDlP=xmlDOMtoUTF32(inputDocumentRootP,4);
     uint8_t* datap=(uint8_t*)malloc(sizeof(uint8_t)*4*utf32XmlDlP->itemcnt);
@@ -363,12 +363,11 @@ struct DynamicList* xmlDOMtoUTF32(struct xmlTreeElement* startingElement, int nu
     uint32_t subindex=0;            //which child node is currently processed
     int writeOpeningTagToggle=1;
     do{
-        uint32_t itemcnt=;
         if(CurrentXMLTreeElement->parent==LastXMLTreeElement){      //walk deeper
             if(writeOpeningTagToggle){//-------write start tag, attributes
                 //write changes
                 struct DynamicList* spacesDlP=DlCreate(sizeof(uint32_t),1+numSpacesIndent*currentDepth+1,dynlisttype_utf32chars);
-                (uint32_t*)(spacesDlP->items)[0]='\n';
+                ((uint32_t*)(spacesDlP->items))[0]='\n';
                 for(uint32_t i=1;i<=numSpacesIndent*currentDepth;i++){
                     (uint32_t*)(spacesDlP->items)[i]=' ';
                 }
