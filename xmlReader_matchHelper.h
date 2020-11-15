@@ -176,6 +176,7 @@ void init_matchlists(void){
 }
 
 void deinit_matchlists(void){
+    //TODO add all lists
     DlDelete(WM_XMLDecl_start);
     DlDelete(WM_XMLDecl_end);
     DlDelete(WM_doctype_start);

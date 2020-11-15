@@ -5,42 +5,15 @@
 #include <math.h>       //for pow
 #include <debug.h>
 
-void DlAppend(size_t sizeofListElements,struct DynamicList** ListOrNullpp,void* newElementp,uint32_t typeId){      //Destroys old pointer and returns new pointer, user needs to update all pointers referring to this object
-    if(!ListOrNullpp){
-        dprintf(DBGT_ERROR,"argument cant be nullptr");
-        exit(-1);
-    }
-    struct DynamicList* oldDynList=(*ListOrNullpp);
-    struct DynamicList* newDynList;
-    if(oldDynList){//Does already exist, so increase storage space
-        if(oldDynList->type!=typeId){
-            dprintf(DBGT_ERROR,"List type missmatch");
-            dprintf(DBGT_ERROR,"was %x,new %x",oldDynList->type,typeId);
-            exit(-1);
-        }
-        newDynList=realloc(oldDynList,sizeof(struct DynamicList)+sizeofListElements*(1+oldDynList->itemcnt));
-        //DO NOT USE oldDynList or (*ListOrNullpp) variable after this statement, is is invalid
-        newDynList->itemcnt++;
-    }else{
-        newDynList=(struct DynamicList*)malloc(sizeof(struct DynamicList)+sizeofListElements);
-        newDynList->itemcnt=1;
-        newDynList->type=typeId;
-    }
-    //Fix dangling pointers
-    newDynList->items=(&(newDynList[1]));
-    //copy new element in list
-    void** lastElementInListp=(void**)((char*)newDynList->items+(sizeofListElements*(newDynList->itemcnt-1)));
-    memcpy(lastElementInListp,newElementp,sizeofListElements);
-    //(*lastElementInListp)=newElementp;
-    *ListOrNullpp=newDynList;
-    return;
-}
-
 struct DynamicList* DlCreate(size_t sizeofListElements,uint32_t NumOfNewElements,uint32_t typeId){
     struct DynamicList* newDynList;
     newDynList=(struct DynamicList*) malloc(sizeof(struct DynamicList)+sizeofListElements*NumOfNewElements);
     newDynList->itemcnt=NumOfNewElements;
-    newDynList->items=(&(newDynList[1]));
+    if(NumOfNewElements){
+        newDynList->items=(&(newDynList[1]));
+    }else{      //important hack, so that the list does not break memcpy(List1->items,EmptyList->items,0);, which breaks when dereferencing EmptyList->items
+        newDynList->items=(&(newDynList[0]));
+    }
     newDynList->type=typeId;
     return newDynList;
 }
@@ -103,7 +76,6 @@ char* utf32dynlist_to_string(struct DynamicList* utf32dynlist){
     if(utf32dynlist->type!=dynlisttype_utf32chars){
         dprintf(DBGT_ERROR,"incorrect list type");
     }
-    dprintf(DBGT_INFO,"LenOfStrg %d",utf32dynlist->itemcnt);
     char* outstring=(char*)malloc(sizeof(char*)*(utf32dynlist->itemcnt+1));
     utf32CutASCII(utf32dynlist->items,utf32dynlist->itemcnt,outstring);
     return outstring;
@@ -526,28 +498,28 @@ struct DynamicList* DlDuplicate(size_t sizeofListElements,struct DynamicList* in
         dprintf(DBGT_ERROR,"currently unsupported list type");
         return 0;
     }
-    struct DynamicList* newDynlistP=(struct DynamicList*)malloc(sizeof(struct DynamicList)+sizeofListElements*(inDynlistP->itemcnt));
-    memcpy(newDynlistP,inDynlistP,sizeof(struct DynamicList)+sizeofListElements*(inDynlistP->itemcnt));
-    newDynlistP->items=(&(newDynlistP[1]));
+    struct DynamicList* newDynlistP=DlCreate(sizeofListElements,inDynlistP->itemcnt,inDynlistP->type);
+    memcpy(newDynlistP->items,inDynlistP->items,sizeofListElements*(inDynlistP->itemcnt));
     return newDynlistP;
 }
 
 struct DynamicList* DlCombine(size_t sizeofListElements,struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P){
     //check if of same type
     if(!Dynlist1P||!Dynlist2P){
-        dprintf(DBGT_INFO,"Called with one Nullptr");
+        dprintf(DBGT_ERROR,"Called with one Nullptr");
         return 0;
     }
     if(Dynlist1P->type!=Dynlist2P->type){
-        dprintf(DBGT_INFO,"Attempted to concatenate lists of different types");
+        dprintf(DBGT_ERROR,"Attempted to concatenate lists of different types");
+        dprintf(DBGT_ERROR,"first type was %d, second type was %d",Dynlist1P->type,Dynlist2P->type);
         return 0;
     }
     uint32_t newItemcnt=Dynlist1P->itemcnt+Dynlist2P->itemcnt;
     struct DynamicList* DynlistRP=(struct DynamicList*)malloc(sizeof(struct DynamicList)+newItemcnt*sizeofListElements);
     DynlistRP->itemcnt=newItemcnt;
     DynlistRP->type=Dynlist1P->type;
-    memcpy(DynlistRP->items,Dynlist1P->items,sizeofListElements*(Dynlist1P->itemcnt));
     DynlistRP->items=(&(DynlistRP[1]));
+    memcpy(DynlistRP->items,Dynlist1P->items,sizeofListElements*(Dynlist1P->itemcnt));
     memcpy(((char*)(DynlistRP->items))+sizeofListElements*(Dynlist1P->itemcnt),Dynlist2P->items,sizeofListElements*(Dynlist2P->itemcnt));
     return(DynlistRP);
 }
@@ -578,10 +550,6 @@ struct DynamicList* getValueFromKeyName_freeArg2(struct DynamicList* attlist,str
 }
 
 struct DynamicList* getValueFromKeyName(struct DynamicList* attlist,struct DynamicList* nameD2){
-  if(!attlist){
-        dprintf(DBGT_ERROR,"Attlist was nullptr");
-        return 0;
-    }
     if(!attlist->itemcnt){
         dprintf(DBGT_ERROR,"Attlist has no attributes");
         return 0;
@@ -594,7 +562,7 @@ struct DynamicList* getValueFromKeyName(struct DynamicList* attlist,struct Dynam
     return 0;
 }
 
-
+/*
 
 struct DynamicList* getSubelementsWith_freeArg2345(struct xmlTreeElement* startElementp,struct DynamicList* NameDynlistP,struct DynamicList* KeyDynlistP,struct DynamicList* ValueDynlistP,struct DynamicList* ContentDynlistP, uint32_t maxDepth){
     struct DynamicList*result=getSubelementsWith(startElementp,NameDynlistP,KeyDynlistP,ValueDynlistP,ContentDynlistP,maxDepth);
@@ -608,6 +576,7 @@ struct DynamicList* getSubelementsWith_freeArg2345(struct xmlTreeElement* startE
 //maxDepth 0 means only search direct childs of current element
 //For Name, Key, Value and Content a NULL-prt can be passed, which means that this property is ignored when matching
 //TODO version that delete input dynamic lists, so it can be used with createUTF32dynlist from string.
+
 struct DynamicList* getSubelementsWith(struct xmlTreeElement* startElementp,struct DynamicList* NameDynlistP,struct DynamicList* KeyDynlistP,struct DynamicList* ValueDynlistP,struct DynamicList* ContentDynlistP, uint32_t maxDepth){
     struct DynamicList* returnDynList=0;
     struct xmlTreeElement* LastXMLTreeElement=startElementp->parent;
@@ -677,6 +646,7 @@ struct DynamicList* getSubelementsWith(struct xmlTreeElement* startElementp,stru
     }
     return returnDynList;
 };
+
 
 //0 for depth means search only childs of current element
 struct DynamicList* getSubelementsWithCheckFunc(uint32_t (*checkfkt)(struct xmlTreeElement*),struct xmlTreeElement* startElementp,uint32_t maxDepth){
@@ -761,18 +731,18 @@ uint32_t nameCheckFkt(struct xmlTreeElement* nameInit_or_xmlElement){
         return 42;
     }
 }
+*/
 
-
-struct DynamicList* utf32dynlistToInts(struct DynamicList* NumberSeperatorP,struct DynamicList* utf32StringInP){
-    return utf32dynlistToInts_freeArg1(DlDuplicate(sizeof(uint32_t),NumberSeperatorP),utf32StringInP);
+struct DynamicList* utf32dynlistToInts64(struct DynamicList* NumberSeperatorP,struct DynamicList* utf32StringInP){
+    return utf32dynlistToInts64_freeArg1(DlDuplicate(sizeof(uint32_t),NumberSeperatorP),utf32StringInP);
 }
 
-struct DynamicList* utf32dynlistToInts_freeArg1(struct DynamicList* NumberSeperatorP,struct DynamicList* utf32StringInP){
+struct DynamicList* utf32dynlistToInts64_freeArg1(struct DynamicList* NumberSeperatorP,struct DynamicList* utf32StringInP){
     if(NumberSeperatorP->type!=ListType_CharMatch||utf32StringInP->type!=dynlisttype_utf32chars){
         dprintf(DBGT_ERROR,"Invalid parameter passed to function");
         return 0;
     }
-    struct DynamicList* returnDynlistp=0;
+    struct DynamicList* returnDlP=DlCreate(sizeof(int64_t),0,ListType_int64);
     uint32_t offsetInString=0;
     enum{flag_in_digits=(1<<0),flag_minus_mantis=(1<<1)};
     int32_t flagreg=0;
@@ -828,7 +798,9 @@ struct DynamicList* utf32dynlistToInts_freeArg1(struct DynamicList* NumberSepera
                     if(flagreg&flag_minus_mantis){
                         mantisVal*=(-1);
                     }
-                    DlAppend(sizeof(double),&returnDynlistp,&mantisVal,ListType_double);
+                    struct DynamicList* newIntDlP=DlCreate(sizeof(int64_t),1,ListType_int64);
+                    ((int64_t*)newIntDlP->items)[0]=mantisVal;
+                    returnDlP=DlCombine_freeArg12(sizeof(int64_t),returnDlP,newIntDlP);
                     flagreg=0;
                     mantisVal=0;
                 }
@@ -844,10 +816,12 @@ struct DynamicList* utf32dynlistToInts_freeArg1(struct DynamicList* NumberSepera
         if(flagreg&flag_minus_mantis){
             mantisVal*=(-1);
         }
-        DlAppend(sizeof(double),&returnDynlistp,&mantisVal,ListType_double);
+        struct DynamicList* newIntDlP=DlCreate(sizeof(int64_t),1,ListType_int64);
+        ((int64_t*)newIntDlP->items)[0]=mantisVal;
+        returnDlP=DlCombine_freeArg12(sizeof(int64_t),returnDlP,newIntDlP);
     }
     DlDelete(nummatch);
-    return returnDynlistp;
+    return returnDlP;
 }
 
 
@@ -856,7 +830,7 @@ struct DynamicList* utf32dynlistToDoubles(struct DynamicList* NumberSeperatorP,s
 }
 
 struct DynamicList* utf32dynlistToDoubles_freeArg123(struct DynamicList* NumberSeperatorP,struct DynamicList* OrderOfMagP, struct DynamicList* DecimalSeperatorP,struct DynamicList* utf32StringInP){
-    struct DynamicList* returnDynlistp=0;
+    struct DynamicList* returnDlP=DlCreate(sizeof(double),0,ListType_double);
     uint32_t offsetInString=0;
     double mantisVal=0;
     enum{flag_in_digits=(1<<0),flag_decplc=(1<<1),flag_in_decplcdigits=(1<<2),flag_orOfMag=(1<<3),flag_in_exp_digits=(1<<4),flag_minus_mantis=(1<<5),flag_minus_exp=(1<<6)};
@@ -933,7 +907,9 @@ struct DynamicList* utf32dynlistToDoubles_freeArg123(struct DynamicList* NumberS
                     }
                     exponVal-=NumOfDecplcDig;
                     mantisVal*=pow(10,exponVal);
-                    DlAppend(sizeof(double),&returnDynlistp,&mantisVal,ListType_double);
+                    struct DynamicList* newDoubleDlP=DlCreate(sizeof(double),1,ListType_double);
+                    ((double*)newDoubleDlP->items)[0]=mantisVal;
+                    returnDlP=DlCombine_freeArg12(sizeof(double),returnDlP,newDoubleDlP);
                     flagreg=0;
                     NumOfDecplcDig=0;
                     mantisVal=0;
@@ -1010,10 +986,12 @@ struct DynamicList* utf32dynlistToDoubles_freeArg123(struct DynamicList* NumberS
         }
         exponVal-=NumOfDecplcDig;
         mantisVal*=pow(10,exponVal);
-        DlAppend(sizeof(double),&returnDynlistp,&mantisVal,ListType_double);
+        struct DynamicList* newDoubleDlP=DlCreate(sizeof(double),1,ListType_double);
+        ((double*)newDoubleDlP->items)[0]=mantisVal;
+        returnDlP=DlCombine_freeArg12(sizeof(double),returnDlP,newDoubleDlP);
     }
     DlDelete(nummatch);       //TODO fix for all return types
-    return returnDynlistp;
+    return returnDlP;
 }
 
 struct DynamicList* utf32dynlistToFloats(struct DynamicList* NumberSeperatorP,struct DynamicList* OrderOfMagP, struct DynamicList* DecimalSeperatorP,struct DynamicList* utf32StringInP){
@@ -1022,7 +1000,7 @@ struct DynamicList* utf32dynlistToFloats(struct DynamicList* NumberSeperatorP,st
 
 
 struct DynamicList* utf32dynlistToFloats_freeArg123(struct DynamicList* NumberSeperatorP,struct DynamicList* OrderOfMagP, struct DynamicList* DecimalSeperatorP,struct DynamicList* utf32StringInP){
-    struct DynamicList* returnDynlistp=0;
+    struct DynamicList* returnDlP=DlCreate(sizeof(float),0,ListType_float);
     uint32_t offsetInString=0;
     float mantisVal=0;
     enum{flag_in_digits=(1<<0),flag_decplc=(1<<1),flag_in_decplcdigits=(1<<2),flag_orOfMag=(1<<3),flag_in_exp_digits=(1<<4),flag_minus_mantis=(1<<5),flag_minus_exp=(1<<6)};
@@ -1099,7 +1077,9 @@ struct DynamicList* utf32dynlistToFloats_freeArg123(struct DynamicList* NumberSe
                     }
                     exponVal-=NumOfDecplcDig;
                     mantisVal*=pow(10,exponVal);
-                    DlAppend(sizeof(double),&returnDynlistp,&mantisVal,ListType_double);
+                    struct DynamicList* newFloatDlP=DlCreate(sizeof(float),1,ListType_float);
+                    ((float*)newFloatDlP->items)[0]=mantisVal;
+                    returnDlP=DlCombine_freeArg12(sizeof(float),returnDlP,newFloatDlP);
                     flagreg=0;
                     NumOfDecplcDig=0;
                     mantisVal=0;
@@ -1175,8 +1155,10 @@ struct DynamicList* utf32dynlistToFloats_freeArg123(struct DynamicList* NumberSe
         }
         exponVal-=NumOfDecplcDig;
         mantisVal*=pow(10,exponVal);
-        DlAppend(sizeof(float),&returnDynlistp,&mantisVal,ListType_float);
+        struct DynamicList* newFloatDlP=DlCreate(sizeof(float),1,ListType_float);
+        ((float*)newFloatDlP->items)[0]=mantisVal;
+        returnDlP=DlCombine_freeArg12(sizeof(float),returnDlP,newFloatDlP);
     }
     DlDelete(nummatch);       //TODO fix for all return types
-    return returnDynlistp;
+    return returnDlP;
 }

@@ -85,8 +85,8 @@ struct DynamicList* getSubelementsWithCheckFunc(uint32_t (*checkfkt)(struct xmlT
 
 
 //xml content functions
-struct DynamicList* utf32dynlistToInts         (struct DynamicList* NumberSeperatorP,struct DynamicList* utf32StringInP);
-struct DynamicList* utf32dynlistToInts_freeArg1(struct DynamicList* NumberSeperatorP,struct DynamicList* utf32StringInP);
+struct DynamicList* utf32dynlistToInts64         (struct DynamicList* NumberSeperatorP,struct DynamicList* utf32StringInP);
+struct DynamicList* utf32dynlistToInts64_freeArg1(struct DynamicList* NumberSeperatorP,struct DynamicList* utf32StringInP);
 struct DynamicList* utf32dynlistToDoubles           (struct DynamicList* NumberSeperatorP,struct DynamicList* OrderOfMagP, struct DynamicList* DecimalSeperatorP,struct DynamicList* utf32StringInP);
 struct DynamicList* utf32dynlistToDoubles_freeArg123(struct DynamicList* NumberSeperatorP,struct DynamicList* OrderOfMagP, struct DynamicList* DecimalSeperatorP,struct DynamicList* utf32StringInP);
 struct DynamicList* utf32dynlistToFloats            (struct DynamicList* NumberSeperatorP,struct DynamicList* OrderOfMagP, struct DynamicList* DecimalSeperatorP,struct DynamicList* utf32StringInP);
