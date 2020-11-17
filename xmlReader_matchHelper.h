@@ -100,7 +100,7 @@ void init_matchlists(void){
         DlDuplicate(sizeof(uint32_t),CM_LessThanChar),
         DlDuplicate(sizeof(uint32_t),CM_NameStartChar)
     );
-    WM_element_endTag=createWordMatchList(2,
+    WM_element_endTag=createWordMatchList(3,
         createCharMatchList(2,'<','<'),
         createCharMatchList(2,'/','/'),
         DlDuplicate(sizeof(uint32_t),CM_NameStartChar)
@@ -163,12 +163,13 @@ void init_matchlists(void){
         WM_element_endNonEmpty,
         WM_element_endEmpty
     );
-    MWM_start=createMultiWordMatchList(7,
+    MWM_start=createMultiWordMatchList(8,
         WM_XMLDecl_start,
         WM_doctype_start,
         WM_element_endTag,      //must be before WM_element_start
         WM_element_start,
         WM_pi_start,
+        WM_cdata_start,
         WM_comment_start,
         WM_IllegalChar
     );

@@ -16,6 +16,7 @@ struct key_val_pair{
 };
 
 enum {
+    xmltype_docRoot = 0x41, //return of the parsing function
     xmltype_comment = 0x42, //comment
     xmltype_pi      = 0x43, //processing instruction
     xmltype_tag     = 0x44, //subtag

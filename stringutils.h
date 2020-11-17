@@ -7,9 +7,9 @@
 struct xmlTreeElement;
 struct key_val_pair;
 
-enum {  dynlisttype_utf32chars=54,          //items of type uint32_t (utf32 characters not null terminated)
-        dynlisttype_keyValuePairsp,      //items of type struct key_val_pait*
-        dynlisttype_xmlELMNTCollectionp, //items of type struct xmlTreeElement*
+enum {  dynlisttype_utf32chars=0x30,          //items of type uint32_t (utf32 characters not null terminated)
+        dynlisttype_keyValuePairsp=0x31,      //items of type struct key_val_pait*
+        dynlisttype_xmlELMNTCollectionp=0x32, //items of type struct xmlTreeElement*
 
         ListType_CharMatch,
         ListType_WordMatchp,
@@ -36,7 +36,7 @@ struct DynamicList{
 
 struct DynamicList* DlCreate            (size_t sizeofListElements,uint32_t NumOfNewElements,uint32_t typeId);
 struct DynamicList* DlDuplicate         (size_t sizeofListElements,struct DynamicList* inDynlistP);
-void                DlAppend            (size_t sizeofListElements,struct DynamicList** ListOrNullPtr,void* newElement,uint32_t typeId);
+struct DynamicList* DlAppend            (size_t sizeofListElements,struct DynamicList* Dynlist1P,void* appendedElementP);
 struct DynamicList* DlCombine           (size_t sizeofListElements,struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P);
 struct DynamicList* DlCombine_freeArg1  (size_t sizeofListElements,struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P);
 struct DynamicList* DlCombine_freeArg2  (size_t sizeofListElements,struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P);
