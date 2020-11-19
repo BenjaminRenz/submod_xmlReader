@@ -3,7 +3,7 @@
 #include <stdlib.h>     //for malloc
 #include <string.h>     //for memcpy
 #include <math.h>       //for pow
-#include <debug.h>
+#include <xmlReader/debug.h>
 
 struct DynamicList* DlCreate(size_t sizeofListElements,uint32_t NumOfNewElements,uint32_t typeId){
     struct DynamicList* newDynList;

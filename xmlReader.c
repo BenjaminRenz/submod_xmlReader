@@ -223,9 +223,11 @@ int parseNameAndAttrib(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep
     int matchResult=Match(xmlFileDlP,offsetInXMLfilep,MWM_EndTagDlP,CM_NameChar);
     uint32_t nameEndOffset=(*offsetInXMLfilep);
     dprintf(DBGT_INFO,"nameEndOffset: %d",nameEndOffset);
-    if((matchResult<0) && (MatchAndIncrement(xmlFileDlP,offsetInXMLfilep,CM_SpaceChar,0)<0)){        //there must be a space, after the element if attributes follow
-        dprintf(DBGT_ERROR,"Invalid character in element name");
-        return -1;
+    if(matchResult<0){
+        if(MatchAndIncrement(xmlFileDlP,offsetInXMLfilep,CM_SpaceChar,0)<0){        //there must be a space, after the element if attributes follow
+            dprintf(DBGT_ERROR,"Invalid character in element name");
+            return -1;
+        }
     }else{
         uint32_t lengthOfApplyingEndTag=((struct DynamicList**)(MWM_EndTagDlP->items))[matchResult]->itemcnt;
         (*offsetInXMLfilep)+=lengthOfApplyingEndTag;
@@ -249,7 +251,7 @@ int parseAttrib(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct
         uint32_t attKeyStartOffset=(*offsetInXMLfilep);
         if(matchRes<0){
             if(MatchAndIncrement(xmlFileDlP,offsetInXMLfilep,CM_NameStartChar,0)<0){
-                dprintf(DBGT_ERROR,"unexpected character as first attribute");
+                dprintf(DBGT_ERROR,"unexpected character hex: %x as first attribute",((uint32_t*)xmlFileDlP->items)[*offsetInXMLfilep]);
                 return -1;
             }
         }else{
