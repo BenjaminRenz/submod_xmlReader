@@ -207,7 +207,7 @@ int parseXMLDecl(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struc
     if(ObjectToAttachResultsP->attributes->itemcnt!=0){
         dprintf(DBGT_ERROR,"<?xml occured more than one or after Doctype");
     }
-    ObjectToAttachResultsP->name=DlCombine_freeArg12(sizeof(uint32_t),ObjectToAttachResultsP->name,stringToUTF32Dynlist("xml"));
+    ObjectToAttachResultsP->name=DlCombine_freeArg23(sizeof(uint32_t),ObjectToAttachResultsP->name,stringToUTF32Dynlist("xml"));
     parseAttrib(xmlFileDlP,offsetInXMLfilep,ObjectToAttachResultsP,WM_XMLDecl_end);
 }
 
@@ -311,7 +311,7 @@ int parseAttrib(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct
         key_valP->key=keyDlP;
         key_valP->value=valueDlP;
         dprintf(DBGT_INFO,"new key:\t%s\nnew value:\t%s",utf32dynlist_to_string(keyDlP),utf32dynlist_to_string(valueDlP));
-        ObjectToAttachResultsP->attributes=DlCombine_freeArg12(sizeof(struct key_val_pair),ObjectToAttachResultsP->attributes,newAttributeDlP);
+        ObjectToAttachResultsP->attributes=DlCombine_freeArg23(sizeof(struct key_val_pair),ObjectToAttachResultsP->attributes,newAttributeDlP);
         dprintf(DBGT_INFO,"new itemcnt of attribute %d",ObjectToAttachResultsP->attributes->itemcnt);
     }
 }
@@ -423,74 +423,74 @@ struct DynamicList* xmlDOMtoUTF32(struct xmlTreeElement* startingElement, int fo
                 case xmltype_docRoot:
                     //print "<xml"
                     {
-                        returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("<?"));
+                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("<?"));
                         returnUtf32StringDlP=DlCombine_freeArg2(sizeof(uint32_t),returnUtf32StringDlP,CurrentXMLTreeElementP->name);
                     }
                     //print optional attributes
                     for(uint32_t attributenum=0; attributenum<CurrentXMLTreeElementP->attributes->itemcnt; attributenum++){
                         struct DynamicList* KeyDynlistp=(((struct key_val_pair*)CurrentXMLTreeElementP->attributes->items)[attributenum]).key;
                         struct DynamicList* ValDynlistp=(((struct key_val_pair*)CurrentXMLTreeElementP->attributes->items)[attributenum]).value;
-                        returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist(" "));
+                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist(" "));
                         returnUtf32StringDlP=DlCombine_freeArg2(sizeof(uint32_t),returnUtf32StringDlP,KeyDynlistp);
-                        returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("=\""));
+                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("=\""));
                         returnUtf32StringDlP=DlCombine_freeArg2(sizeof(uint32_t),returnUtf32StringDlP,ValDynlistp);
-                        returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("\""));
+                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("\""));
                     }
                     //print right closing tag "?>"
-                    returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("?>"));
+                    returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("?>"));
                     //do not change depth, the document root acts like a processing instruction
                     subindex=subindex_needs_reinitialization;
                 break;
                 case xmltype_tag:
                     //print "<tagname"
                     {
-                        returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("<"));
+                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("<"));
                         returnUtf32StringDlP=DlCombine_freeArg2(sizeof(uint32_t),returnUtf32StringDlP,CurrentXMLTreeElementP->name);
                     }
                     //print optional attributes
                     for(uint32_t attributenum=0; attributenum<CurrentXMLTreeElementP->attributes->itemcnt; attributenum++){
                         struct DynamicList* KeyDynlistp=(((struct key_val_pair*)CurrentXMLTreeElementP->attributes->items)[attributenum]).key;
                         struct DynamicList* ValDynlistp=(((struct key_val_pair*)CurrentXMLTreeElementP->attributes->items)[attributenum]).value;
-                        returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist(" "));
+                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist(" "));
                         returnUtf32StringDlP=DlCombine_freeArg2(sizeof(uint32_t),returnUtf32StringDlP,KeyDynlistp);
-                        returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("=\""));
+                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("=\""));
                         returnUtf32StringDlP=DlCombine_freeArg2(sizeof(uint32_t),returnUtf32StringDlP,ValDynlistp);
-                        returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("\""));
+                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("\""));
                     }
                     //print right closing tag (either > or />)
                     if(CurrentXMLTreeElementP->content->itemcnt){
                         //we have at least one valid subelement, so print ">"
-                        returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist(">"));
+                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist(">"));
                         //Jump to the next subelement
                         currentDepth++;
                         subindex=subindex_needs_reinitialization;
                     }else{
                         //there are no subelements, so print "/>"
-                        returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("/>"));
+                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("/>"));
                     }
                 break;
                 case xmltype_cdata:
-                    returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("<![CDATA["));
+                    returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("<![CDATA["));
                     returnUtf32StringDlP=DlCombine_freeArg2(sizeof(uint32_t),returnUtf32StringDlP,CurrentXMLTreeElementP->content);
-                    returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("]]>"));
+                    returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("]]>"));
                 break;
                 case xmltype_chardata:
                     //test to confirm no < or & characters are inside
                     returnUtf32StringDlP=DlCombine_freeArg2(sizeof(uint32_t),returnUtf32StringDlP,CurrentXMLTreeElementP->content);
                 break;
                 case xmltype_comment:
-                    returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("<!--"));
+                    returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("<!--"));
                     returnUtf32StringDlP=DlCombine_freeArg2(sizeof(uint32_t),returnUtf32StringDlP,CurrentXMLTreeElementP->content);
-                    returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("-->"));
+                    returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("-->"));
                 break;
                 case xmltype_pi:
-                    returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("<?"));
+                    returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("<?"));
                     returnUtf32StringDlP=DlCombine_freeArg2(sizeof(uint32_t),returnUtf32StringDlP,CurrentXMLTreeElementP->name);
                     if(CurrentXMLTreeElementP->content->itemcnt){
-                        returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist(" "));
+                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist(" "));
                         returnUtf32StringDlP=DlCombine_freeArg2(sizeof(uint32_t),returnUtf32StringDlP,CurrentXMLTreeElementP->content);
                     }
-                    returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("?>"));
+                    returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("?>"));
                 break;
                 default:
                     dprintf(DBGT_ERROR,"Tag of this type is not handled (type %x)",CurrentXMLTreeElementP->type);
@@ -526,9 +526,9 @@ struct DynamicList* xmlDOMtoUTF32(struct xmlTreeElement* startingElement, int fo
                 currentDepth--;
                 //write closing tag
                 if(CurrentXMLTreeElementP->type!=xmltype_docRoot){//do not write a closing </xml> element on the end of our output
-                    returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("</"));
+                    returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("</"));
                     returnUtf32StringDlP=DlCombine_freeArg2(sizeof(uint32_t),returnUtf32StringDlP,CurrentXMLTreeElementP->name);
-                    returnUtf32StringDlP=DlCombine_freeArg12(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist(">"));
+                    returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist(">"));
                 }
                 //Move one level upward
                 LastXMLTreeElementP=CurrentXMLTreeElementP;

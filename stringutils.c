@@ -485,8 +485,8 @@ struct xmlTreeElement* getFirstSubelementWith(struct xmlTreeElement* startingEle
                     }
                     if(KeyDynlistP){
                         struct DynamicList* ValueDlP=getValueFromKeyName(CurrentXMLTreeElementP->attributes,KeyDynlistP);
-                        if(ValueDlP&&ValueDlP->itemcnt){
-                            if(ValueDynlistP&& (!compareEqualDynamicUTF32List_freeArg2(ValueDynlistP,ValueDlP))){
+                        if(ValueDlP&&(ValueDlP->itemcnt)){
+                            if(ValueDynlistP&& (!compareEqualDynamicUTF32List(ValueDynlistP,ValueDlP))){
                                 objectMatches=0;
                             }
                         }else{
@@ -611,7 +611,7 @@ struct DynamicList* DlCombine_freeArg3(size_t sizeofListElements,struct DynamicL
     return(DynlistRP);
 }
 
-struct DynamicList* DlCombine_freeArg12(size_t sizeofListElements,struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P){
+struct DynamicList* DlCombine_freeArg23(size_t sizeofListElements,struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P){
     struct DynamicList* DynlistRP=DlCombine(sizeofListElements,Dynlist1P,Dynlist2P);
     DlDelete(Dynlist1P);
     DlDelete(Dynlist2P);

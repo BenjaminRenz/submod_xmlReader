@@ -40,7 +40,7 @@ struct DynamicList* DlAppend            (size_t sizeofListElements,struct Dynami
 struct DynamicList* DlCombine           (size_t sizeofListElements,struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P);
 struct DynamicList* DlCombine_freeArg2  (size_t sizeofListElements,struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P);
 struct DynamicList* DlCombine_freeArg3  (size_t sizeofListElements,struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P);
-struct DynamicList* DlCombine_freeArg12 (size_t sizeofListElements,struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P);
+struct DynamicList* DlCombine_freeArg23 (size_t sizeofListElements,struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P);
 void                DlDelete            (struct DynamicList* DynListPtr);
 
 uint32_t compareEqualDynamicUTF32List(struct DynamicList* List1UTF32,struct DynamicList* List2UTF32);
