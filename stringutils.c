@@ -286,8 +286,8 @@ int Match(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP, struct Dyn
                 case ListType_MultiCharMatchp:
                     for(uint32_t MCMidx=0;MCMidx<(breakIfMatchDlP->itemcnt);MCMidx++){        //iterate over sub char match lists
                         struct DynamicList* CMDlP=(((struct DynamicList**)breakIfMatchDlP->items)[MCMidx]);  //get char match list
-                        if((*InOutIndexP)<StringInUtf32DlP->itemcnt && (ret=MatchCharRange(StringInUtf32DlP,InOutIndexP,CMDlP)>-1)){
-                            return ret;
+                        if((*InOutIndexP)<StringInUtf32DlP->itemcnt && (MatchCharRange(StringInUtf32DlP,InOutIndexP,CMDlP)>-1)){
+                            return MCMidx;
                         }
                     }
                 break;
@@ -443,6 +443,7 @@ struct xmlTreeElement* getNthSubelement(struct xmlTreeElement* parentP, uint32_t
 struct xmlTreeElement* getFirstSubelementWith_freeArg2345(struct xmlTreeElement* startElementp,struct DynamicList* NameDynlistP,struct DynamicList* KeyDynlistP,struct DynamicList* ValueDynlistP,struct DynamicList* ContentDynlistP, uint32_t maxDepth){
     struct xmlTreeElement* returnXmlElmntP=getFirstSubelementWith(startElementp,NameDynlistP,KeyDynlistP,ValueDynlistP,ContentDynlistP,maxDepth);
     //Delete Dynlists if they are valid pointers
+    printUTF32Dynlist(NameDynlistP);
     if(NameDynlistP)    {DlDelete(NameDynlistP);}
     if(KeyDynlistP)     {DlDelete(KeyDynlistP);}
     if(ValueDynlistP)   {DlDelete(ValueDynlistP);}
@@ -598,13 +599,13 @@ struct DynamicList* DlAppend(size_t sizeofListElements,struct DynamicList* Dynli
     return(DynlistRP);
 };
 
-struct DynamicList* DlCombine_freeArg1(size_t sizeofListElements,struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P){
+struct DynamicList* DlCombine_freeArg2(size_t sizeofListElements,struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P){
     struct DynamicList* DynlistRP=DlCombine(sizeofListElements,Dynlist1P,Dynlist2P);
     DlDelete(Dynlist1P);
     return(DynlistRP);
 }
 
-struct DynamicList* DlCombine_freeArg2(size_t sizeofListElements,struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P){
+struct DynamicList* DlCombine_freeArg3(size_t sizeofListElements,struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P){
     struct DynamicList* DynlistRP=DlCombine(sizeofListElements,Dynlist1P,Dynlist2P);
     DlDelete(Dynlist2P);
     return(DynlistRP);
@@ -708,7 +709,8 @@ struct DynamicList* utf32dynlistToInts64_freeArg1(struct DynamicList* NumberSepe
     uint32_t matchIndex=0;
     while(offsetInString<utf32StringInP->itemcnt){
         //no offset because will match all possible chars
-        switch(MatchAndIncrement(utf32StringInP,&offsetInString,nummatch,0)){
+        matchIndex=MatchAndIncrement(utf32StringInP,&offsetInString,nummatch,0);
+        switch(matchIndex){
             case match_res_nummatch_illegal:
                 dprintf(DBGT_ERROR,"Illegal Character in inputstring");
                 return 0;

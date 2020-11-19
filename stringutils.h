@@ -38,8 +38,8 @@ struct DynamicList* DlCreate            (size_t sizeofListElements,uint32_t NumO
 struct DynamicList* DlDuplicate         (size_t sizeofListElements,struct DynamicList* inDynlistP);
 struct DynamicList* DlAppend            (size_t sizeofListElements,struct DynamicList* Dynlist1P,void* appendedElementP);
 struct DynamicList* DlCombine           (size_t sizeofListElements,struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P);
-struct DynamicList* DlCombine_freeArg1  (size_t sizeofListElements,struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P);
 struct DynamicList* DlCombine_freeArg2  (size_t sizeofListElements,struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P);
+struct DynamicList* DlCombine_freeArg3  (size_t sizeofListElements,struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P);
 struct DynamicList* DlCombine_freeArg12 (size_t sizeofListElements,struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P);
 void                DlDelete            (struct DynamicList* DynListPtr);
 
