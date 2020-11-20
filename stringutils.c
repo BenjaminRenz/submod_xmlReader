@@ -854,7 +854,7 @@ struct DynamicList* utf32dynlistToDoubles_freeArg123(struct DynamicList* NumberS
                         dprintf(DBGT_ERROR,"more than one decDigSeperator in mantisse");
                     }
                 }
-            //TODO check if this fallthrough is wanted
+            break;
             case match_res_nummatch_OrderOfMag:
                 if(flagreg&(flag_in_digits|flag_in_decplcdigits)){
                     flagreg|=flag_orOfMag;
@@ -1020,6 +1020,7 @@ struct DynamicList* utf32dynlistToFloats_freeArg123(struct DynamicList* NumberSe
                         dprintf(DBGT_ERROR,"more than one decDigSeperator in mantisse");
                     }
                 }
+            break;
             case match_res_nummatch_OrderOfMag:
                 if(flagreg&(flag_in_digits|flag_in_decplcdigits)){
                     flagreg|=flag_orOfMag;
