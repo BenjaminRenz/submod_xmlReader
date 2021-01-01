@@ -73,16 +73,13 @@ struct xmlTreeElement* getNthSubelement(struct xmlTreeElement* parentP, uint32_t
 struct DynamicList* getValueFromKeyName         (struct DynamicList* attlist,struct DynamicList* nameD2);
 struct DynamicList* getValueFromKeyName_freeArg2(struct DynamicList* attlist,struct DynamicList* nameD2);
 
-struct xmlTreeElement* getFirstSubelementWith            (struct xmlTreeElement* startElementp,struct DynamicList* NameDynlistP,struct DynamicList* KeyDynlistP,struct DynamicList* ValueDynlistP,struct DynamicList* ContentDynlistP, uint32_t maxDepth);
-struct xmlTreeElement* getFirstSubelementWith_freeArg2345(struct xmlTreeElement* startElementp,struct DynamicList* NameDynlistP,struct DynamicList* KeyDynlistP,struct DynamicList* ValueDynlistP,struct DynamicList* ContentDynlistP, uint32_t maxDepth);
+struct DynamicList* getAllSubelementsWith           (struct xmlTreeElement* startElementp,struct DynamicList* NameDynlistP,struct DynamicList* KeyDynlistP, struct DynamicList* ValueDynlistP, uint32_t ElmntType, uint32_t maxDepth);
+struct DynamicList* getAllSubelementsWith_freeArg234(struct xmlTreeElement* startElementp,struct DynamicList* NameDynlistP,struct DynamicList* KeyDynlistP, struct DynamicList* ValueDynlistP, uint32_t ElmntType, uint32_t maxDepth);
 
-struct DynamicList* getSubelementsWith            (struct xmlTreeElement* startElementp,struct DynamicList* NameDynlistP,struct DynamicList* KeyDynlistP,struct DynamicList* ValueDynlistP,struct DynamicList* ContentDynlistP, uint32_t maxDepth);
-struct DynamicList* getSubelementsWith_freeArg2345(struct xmlTreeElement* startElementp,struct DynamicList* NameDynlistP,struct DynamicList* KeyDynlistP,struct DynamicList* ValueDynlistP,struct DynamicList* ContentDynlistP, uint32_t maxDepth);
+struct xmlTreeElement* getFirstSubelementWith           (struct xmlTreeElement* startElementp,struct DynamicList* NameDynlistP,struct DynamicList* KeyDynlistP, struct DynamicList* ValueDynlistP, uint32_t ElmntType, uint32_t maxDepth);
+struct xmlTreeElement* getFirstSubelementWith_freeArg234(struct xmlTreeElement* startElementp,struct DynamicList* NameDynlistP,struct DynamicList* KeyDynlistP, struct DynamicList* ValueDynlistP, uint32_t ElmntType, uint32_t maxDepth);
 
-struct DynamicList* getSubelementsWithCheckFunc(uint32_t (*checkfkt)(struct xmlTreeElement*),struct xmlTreeElement* startElementp,uint32_t maxDepth);
-//example name matching function, which can also be exported
-//uint32_t nameCheckFkt(struct xmlTreeElement* nameInit_or_xmlElement);
-
+struct DynamicList* utf32dynlistStripSpaceChars(struct DynamicList* utf32StringInP);
 
 //xml content functions
 struct DynamicList* utf32dynlistToInts64         (struct DynamicList* NumberSeperatorP,struct DynamicList* utf32StringInP);

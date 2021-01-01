@@ -5,6 +5,8 @@
 #include <math.h>       //for pow
 #include <xmlReader/debug.h>
 
+#include <xmlReader/stringutils.h>
+
 struct DynamicList* DlCreate(size_t sizeofListElements,uint32_t NumOfNewElements,uint32_t typeId){
     struct DynamicList* newDynList;
     newDynList=(struct DynamicList*) malloc(sizeof(struct DynamicList)+sizeofListElements*NumOfNewElements);
@@ -72,9 +74,20 @@ struct DynamicList* stringToUTF32Dynlist(char* inputString){
     return outputString;
 }
 
+char* utf32dynlist_to_string_freeArg1(struct DynamicList* utf32dynlist){
+    char* returnString=utf32dynlist_to_string(utf32dynlist);
+    DlDelete(utf32dynlist);
+    return returnString;
+}
+
 char* utf32dynlist_to_string(struct DynamicList* utf32dynlist){
+    if(utf32dynlist){
+        dprintf(DBGT_ERROR,"list ptr empty");
+        return 0;
+    }
     if(utf32dynlist->type!=dynlisttype_utf32chars){
         dprintf(DBGT_ERROR,"incorrect list type");
+        return 0;
     }
     char* outstring=(char*)malloc(sizeof(char*)*(utf32dynlist->itemcnt+1));
     utf32CutASCII(utf32dynlist->items,utf32dynlist->itemcnt,outstring);
@@ -405,6 +418,22 @@ int Match(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP, struct Dyn
     return -1;
 }
 
+struct DynamicList* utf32dynlistStripSpaceChars(struct DynamicList* utf32StringInP){
+    uint32_t firstNonSpaceChar=0;
+    MatchAndIncrement(utf32StringInP,&firstNonSpaceChar,CM_NonSpaceChar,CM_SpaceChar);
+    uint32_t lastNonSpaceChar;
+    for(lastNonSpaceChar=utf32StringInP->itemcnt-1;firstNonSpaceChar<=lastNonSpaceChar;lastNonSpaceChar--){
+        if((-1)==MatchCharRange(utf32StringInP,&lastNonSpaceChar,CM_SpaceChar)){
+            break;  //if something different from a space character is found this is our new last character
+        }
+    }
+    struct DynamicList* outputDynlist=DlCreate(sizeof(uint32_t),lastNonSpaceChar-firstNonSpaceChar,dynlisttype_utf32chars);
+    void* srcP=&(((uint32_t*)(utf32StringInP->items))[firstNonSpaceChar]);
+    memcpy(outputDynlist->items,srcP,sizeof(uint32_t)*(lastNonSpaceChar-firstNonSpaceChar));
+    DlDelete(utf32StringInP);
+    return outputDynlist;
+}
+
 struct xmlTreeElement* getNthSubelementOrMisc(struct xmlTreeElement* parentP, uint32_t n){
     if(parentP->content==0){
         return 0;
@@ -440,20 +469,124 @@ struct xmlTreeElement* getNthSubelement(struct xmlTreeElement* parentP, uint32_t
     return NULL;   //not enough subelements
 }
 
-struct xmlTreeElement* getFirstSubelementWith_freeArg2345(struct xmlTreeElement* startElementp,struct DynamicList* NameDynlistP,struct DynamicList* KeyDynlistP,struct DynamicList* ValueDynlistP,struct DynamicList* ContentDynlistP, uint32_t maxDepth){
-    struct xmlTreeElement* returnXmlElmntP=getFirstSubelementWith(startElementp,NameDynlistP,KeyDynlistP,ValueDynlistP,ContentDynlistP,maxDepth);
+//all Name/Key/Value/Type checks must be true for an element to be appended to the returnDlP, or the input to the check must be NULL
+struct DynamicList* getAllSubelementsWith_freeArg234(struct xmlTreeElement* startingElementP,struct DynamicList* NameDynlistP,struct DynamicList* KeyDynlistP, struct DynamicList* ValueDynlistP, uint32_t ElmntType, uint32_t maxDepth){
+    struct DynamicList* returnDlP=getAllSubelementWith(startingElementP,NameDynlistP,KeyDynlistP,ValueDynlistP,ElmntType,maxDepth);
     //Delete Dynlists if they are valid pointers
-    printUTF32Dynlist(NameDynlistP);
     if(NameDynlistP)    {DlDelete(NameDynlistP);}
     if(KeyDynlistP)     {DlDelete(KeyDynlistP);}
     if(ValueDynlistP)   {DlDelete(ValueDynlistP);}
-    if(ContentDynlistP) {DlDelete(ContentDynlistP);}
+    return returnDlP;
+}
+
+struct DynamicList* getAllSubelementWith(struct xmlTreeElement* startingElementP,struct DynamicList* NameDynlistP,struct DynamicList* KeyDynlistP, struct DynamicList* ValueDynlistP, uint32_t ElmntType, uint32_t maxDepth){
+    if(!startingElementP){
+        dprintf(DBGT_ERROR,"getFirstSubelement called with empty startingElemenP pointer");
+        return NULL;
+    }
+    struct DynamicList* returnDlP=DlCreate(sizeof(struct xmlTreeElement),0,dynlisttype_xmlELMNTCollectionp);
+
+    struct xmlTreeElement* LastXMLTreeElementP=startingElementP->parent;
+    struct xmlTreeElement* CurrentXMLTreeElementP=startingElementP;
+    uint32_t currentDepth=0;        //for indentation
+    #define subindex_needs_reinitialization (-1)
+    int32_t subindex=0;             //which child node is currently processed
+    do{
+        if(CurrentXMLTreeElementP->parent==LastXMLTreeElementP){      //walk direction is downward
+            uint32_t objectMatches=1;
+            switch(CurrentXMLTreeElementP->type){
+                case xmltype_tag:
+                case xmltype_docRoot:
+                    if(CurrentXMLTreeElementP->content->itemcnt){
+                        //Jump to the next subelement
+                        currentDepth++;
+                        subindex=subindex_needs_reinitialization;
+                    }
+                case xmltype_cdata:
+                case xmltype_chardata:
+                case xmltype_comment:
+                case xmltype_pi:
+                    if(NameDynlistP){
+                        if(!compareEqualDynamicUTF32List(CurrentXMLTreeElementP->name,NameDynlistP)){
+                            objectMatches=0;
+                        }
+                    }
+                    if(KeyDynlistP){
+                        struct DynamicList* ValueDlP=getValueFromKeyName(CurrentXMLTreeElementP->attributes,KeyDynlistP);
+                        if(ValueDlP&&(ValueDlP->itemcnt)){
+                            if(ValueDynlistP&& (!compareEqualDynamicUTF32List(ValueDynlistP,ValueDlP))){
+                                objectMatches=0;
+                            }
+                        }else{
+                           objectMatches=0;
+                        }
+                    }
+                    if(ElmntType!=0&&CurrentXMLTreeElementP->type!=ElmntType){
+                        objectMatches=0;
+                    }
+                    if(objectMatches){
+                        DlAppend(sizeof(struct xmlTreeElement),returnDlP,CurrentXMLTreeElementP);
+                    }
+                break;
+                default:
+                    dprintf(DBGT_ERROR,"Tag of this type is not handled (type %x)",CurrentXMLTreeElementP->type);
+                break;
+            }
+            if(subindex!=subindex_needs_reinitialization){
+                //successfully parsed last element, so increment subindex
+                //are we the last child inside out parent
+                if(subindex!=subindex_needs_reinitialization&&(++subindex)==CurrentXMLTreeElementP->parent->content->itemcnt){
+                    //yes, then one level upward
+                    LastXMLTreeElementP=CurrentXMLTreeElementP;
+                    CurrentXMLTreeElementP=CurrentXMLTreeElementP->parent;
+                }else{
+                    //
+                    CurrentXMLTreeElementP=(((struct xmlTreeElement**)CurrentXMLTreeElementP->parent->content->items)[subindex]);
+                }
+            }else{
+                //reinitialize pointers to parse first subelement
+                subindex=0;
+                CurrentXMLTreeElementP=(((struct xmlTreeElement**)CurrentXMLTreeElementP->content->items)[subindex]);
+                LastXMLTreeElementP=CurrentXMLTreeElementP->parent;
+            }
+        }else{
+            //go back upward
+            //get subindex from the view of the parent
+            int subindex_of_child_we_came_from=0;
+            while(subindex_of_child_we_came_from<CurrentXMLTreeElementP->content->itemcnt && LastXMLTreeElementP!=((struct xmlTreeElement**)CurrentXMLTreeElementP->content->items)[subindex_of_child_we_came_from]){
+                subindex_of_child_we_came_from++;
+            }
+            //is our object the last child element of our parent?
+            if(subindex_of_child_we_came_from==CurrentXMLTreeElementP->content->itemcnt-1){
+                //yes, so close our current tag and move one layer up
+                currentDepth--;
+                //Move one level upward
+                LastXMLTreeElementP=CurrentXMLTreeElementP;
+                CurrentXMLTreeElementP=CurrentXMLTreeElementP->parent;
+            }else{
+                //no, so setup to print it next
+                LastXMLTreeElementP=CurrentXMLTreeElementP;
+                CurrentXMLTreeElementP=(((struct xmlTreeElement**)CurrentXMLTreeElementP->content->items)[subindex_of_child_we_came_from+1]);
+                subindex=subindex_of_child_we_came_from+1;
+            }
+        }
+    }while(CurrentXMLTreeElementP!=startingElementP->parent);     //TODO error with abort condition when starting from subelement
+    return returnDlP;
+};
+
+
+struct xmlTreeElement* getFirstSubelementWith_freeArg234(struct xmlTreeElement* startElementp,struct DynamicList* NameDynlistP,struct DynamicList* KeyDynlistP, struct DynamicList* ValueDynlistP, uint32_t ElmntType, uint32_t maxDepth){
+    struct xmlTreeElement* returnXmlElmntP=getFirstSubelementWith(startElementp,NameDynlistP,KeyDynlistP,ValueDynlistP,ElmntType,maxDepth);
+    //Delete Dynlists if they are valid pointers
+    if(NameDynlistP)    {DlDelete(NameDynlistP);}
+    if(KeyDynlistP)     {DlDelete(KeyDynlistP);}
+    if(ValueDynlistP)   {DlDelete(ValueDynlistP);}
     return returnXmlElmntP;
 }
 
 //maxDepth 0 means only search direct childs of current element
-//For Name, Key, Value and Content a NULL-prt can be passed, which means that this property is ignored when matching
-struct xmlTreeElement* getFirstSubelementWith(struct xmlTreeElement* startingElementP,struct DynamicList* NameDynlistP,struct DynamicList* KeyDynlistP,struct DynamicList* ValueDynlistP,struct DynamicList* ContentDynlistP, uint32_t maxDepth){
+//For Name, Key, Value and ElmntType a NULL-prt can be passed, which means that this property is ignored when matching
+struct xmlTreeElement* getFirstSubelementWith(struct xmlTreeElement* startingElementP,struct DynamicList* NameDynlistP,struct DynamicList* KeyDynlistP, struct DynamicList* ValueDynlistP, uint32_t ElmntType, uint32_t maxDepth){
     if(!startingElementP){
         dprintf(DBGT_ERROR,"getFirstSubelement called with empty startingElemenP pointer");
         return NULL;
@@ -493,10 +626,8 @@ struct xmlTreeElement* getFirstSubelementWith(struct xmlTreeElement* startingEle
                            objectMatches=0;
                         }
                     }
-                    if(ContentDynlistP && CurrentXMLTreeElementP->content->type==dynlisttype_utf32chars){
-                        if(!compareEqualDynamicUTF32List(CurrentXMLTreeElementP->content,ContentDynlistP)){
-                            objectMatches=0;
-                        }
+                    if(ElmntType!=0&&CurrentXMLTreeElementP->type!=ElmntType){
+                        objectMatches=0;
                     }
                     if(objectMatches){
                         return CurrentXMLTreeElementP;
@@ -544,7 +675,7 @@ struct xmlTreeElement* getFirstSubelementWith(struct xmlTreeElement* startingEle
                 subindex=subindex_of_child_we_came_from+1;
             }
         }
-    }while(CurrentXMLTreeElementP!=startingElementP->parent);     //Todo error with abort condition when starting from subelement
+    }while(CurrentXMLTreeElementP!=startingElementP->parent);     //TODO error with abort condition when starting from subelement
     return NULL;
 };
 

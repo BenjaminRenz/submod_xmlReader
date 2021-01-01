@@ -1,4 +1,6 @@
-
+//Do NOT include carelessly!
+//before using any of the DynamicLists init_matchlists() has to be called
+//also it should not be called twice
 
 struct DynamicList* CM_CharData_start;
 struct DynamicList* CM_IllegalChar;
