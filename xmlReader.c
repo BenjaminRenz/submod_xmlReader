@@ -3,24 +3,37 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include <string.h> //for memcopy
+#include <setjmp.h> //for setjmp
 #include "xmlReader/xmlReader.h"
 #include "xmlReader/xmlReader_matchHelper.h"
 #include "xmlReader/debug.h"
+
+
 enum {  ////errorcodes
         error_unexpected_eof                =-1,
         error_unknown_filelength            =-2,
-        error_zerolength_file               =-3,
-        error_vinfo_not_in_xmldecl          =-4,
-        internal_error_wrong_argument_type  =-5,
-        error_comment_doubleminus           =-6,
-        error_illegal_char                  =-7,
+        error_unexpected_char               =-3,
+        error_malformed_closing_tag         =-4,
+        error_vinfo_not_in_xmldecl          =-5,
+        internal_error_wrong_argument_type  =-6,
+        error_comment_doubleminus           =-7,
         error_malformed_name                =-8,
-        error_unexpected_docdecl            =-9
+        error_unexpected_docdecl            =-9,
+        error_illegal_xmldecl_placement     =-10,
+        error_not_implemented               =-11,
+        error_zerolength_file               =-12
 };
 
-int match_xmldecl(struct DynamicList* xmlFileDyn,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResults);
-int match_doctypedecl(struct DynamicList* xmlFileDyn,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResults);
-int parseAttrib(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResults,struct DynamicList* MWM_EndTagDlP);
+struct DynamicList* xmlDOMtoUTF32(struct xmlTreeElement* startingElement, int formating,int numSpacesIndent);
+int parseXMLDecl(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResultsP);
+void parseDoctype(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResultsP);
+int parseNameAndAttrib(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResultsP,struct DynamicList* MWM_EndTagDlP);
+int parseAttrib(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResultsP,struct DynamicList* MWM_EndTagDlP);
+void parseCdata(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResultsP);
+void parsePi(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResultsP);
+void parseComment(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResultsP);
+void match_loop(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResultsP);
+
 
 enum{misc_ret_charLeft=0, misc_ret_eof=1};
 int match_misc(struct DynamicList* xmlFileDyn,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResults);
@@ -29,7 +42,7 @@ void match_element(struct DynamicList* xmlFileDyn,uint32_t* offsetInXMLfilep,str
 /* Notes of some quirks present in xml:
 -there can be text outside the tags which should not be interpreted
 */
-
+jmp_buf env;    //contains SS ES and SP from the time setjmp was called
 
 int readXML(FILE* xmlFile,struct xmlTreeElement** returnDocumentRootpp){
     //Preprocess
@@ -49,7 +62,7 @@ int readXML(FILE* xmlFile,struct xmlTreeElement** returnDocumentRootpp){
     uint32_t* utf32Buffer=(uint32_t*) malloc(sizeof(uint32_t)*numOfCharsUTF8);     //potentially to big if we have utf8 characters that span over more than one byte
     uint32_t numOfCharsUTF32=utf8ToUtf32(utf8Buffer,numOfCharsUTF8,utf32Buffer); //up until this point we didn't know the actual number of utf32 chars because utf8 chars can combine
     free(utf8Buffer);
-    struct DynamicList* xmlFileDyn=DlCreate(sizeof(uint32_t),numOfCharsUTF32,dynlisttype_utf32chars);
+    struct DynamicList* xmlFileDyn=DlCreate(sizeof(uint32_t),numOfCharsUTF32,DlType_utf32);
     memcpy(xmlFileDyn->items,utf32Buffer,sizeof(uint32_t)*numOfCharsUTF32);
     free(utf32Buffer);
     uint32_t offsetInXMLfile=0;
@@ -57,12 +70,12 @@ int readXML(FILE* xmlFile,struct xmlTreeElement** returnDocumentRootpp){
     struct xmlTreeElement* rootDocumentElementp=(struct xmlTreeElement*)malloc(sizeof(struct xmlTreeElement));
     //initialize root xmlElement
     rootDocumentElementp->parent=0;
-    rootDocumentElementp->name=DlCreate(sizeof(uint32_t),0,dynlisttype_utf32chars);
+    rootDocumentElementp->name=DlCreate(sizeof(uint32_t),0,DlType_utf32);
     rootDocumentElementp->type=xmltype_docRoot;
-    rootDocumentElementp->content=DlCreate(sizeof(struct xmlTreeElement*),0,dynlisttype_xmlELMNTCollectionp);
-    rootDocumentElementp->attributes=DlCreate(sizeof(struct key_val_pair),0,dynlisttype_keyValuePairsp);
+    rootDocumentElementp->content=DlCreate(sizeof(struct xmlTreeElement*),0,DlType_xmlElmntP);
+    rootDocumentElementp->attributes=DlCreate(sizeof(struct key_val_pair),0,DlType_KeyValPairP);
     init_matchlists();  //initialize matchHelper
-    if(match_loop(xmlFileDyn,&offsetInXMLfile,rootDocumentElementp)<0){
+    if(setjmp(env)){
         //Error occured, print exact location of offsetInXmlFile
         uint32_t lines=0;
         uint32_t charpos=0;
@@ -79,12 +92,13 @@ int readXML(FILE* xmlFile,struct xmlTreeElement** returnDocumentRootpp){
         dprintf(DBGT_ERROR,"Error was in line %d, character %d.\n",lines+1,charpos);
         exit(1);
     }
+    match_loop(xmlFileDyn,&offsetInXMLfile,rootDocumentElementp);
     (*returnDocumentRootpp)=rootDocumentElementp;
     dprintf(DBGT_INFO,"Starting element att itemcnt is %d",rootDocumentElementp->attributes->itemcnt);
     return 0;
 }
 
-int match_loop(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResultsP){
+void match_loop(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResultsP){
     int skipSpaces=0;
     while(1){
         enum {  MWMstart_res_XMLDecl_start =0,MWMstart_res_doctype_start =1,MWMstart_res_element_end   =2,
@@ -92,7 +106,7 @@ int match_loop(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct 
                 MWMstart_res_comment_start =6,MWMstart_res_IllegalChar   =7};
         switch(MatchAndIncrement(xmlFileDlP,offsetInXMLfilep,MWM_start,0)){
             case MWMstart_res_XMLDecl_start:
-                parseXMLDecl(xmlFileDlP,offsetInXMLfilep,ObjectToAttachResultsP,WM_pi_end);
+                parseXMLDecl(xmlFileDlP,offsetInXMLfilep,ObjectToAttachResultsP);
                 struct DynamicList* XMLDeclAttribDlP=ObjectToAttachResultsP->attributes;
                 //TODO check if the first attribute is a valid version information
             break;
@@ -113,44 +127,45 @@ int match_loop(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct 
                 uint32_t startElementName=(*offsetInXMLfilep)-1;
                 if(MatchAndIncrement(xmlFileDlP,offsetInXMLfilep,WM_element_endNonEmpty,CM_NameChar)<0){
                     dprintf(DBGT_ERROR,"unexpected character in end tag");
-                    return -1;
+                    longjmp(env,error_unexpected_char);
                 }
                 uint32_t endElementName=*offsetInXMLfilep-1;
-                struct DynamicList* closedNameDlP=DlCreate(sizeof(uint32_t),endElementName-startElementName,dynlisttype_utf32chars);
+                struct DynamicList* closedNameDlP=DlCreate(sizeof(uint32_t),endElementName-startElementName,DlType_utf32);
                 memcpy(closedNameDlP->items,((uint32_t*)xmlFileDlP->items)+startElementName,sizeof(uint32_t)*(endElementName-startElementName));
-                if(!compareEqualDynamicUTF32List_freeArg2(ObjectToAttachResultsP->name,closedNameDlP)){
+                if(!Dl_utf32_compareEqual_freeArg2(ObjectToAttachResultsP->name,closedNameDlP)){
                     dprintf(DBGT_ERROR,"closing tag does not match the one opened before");
-                    return -1;
+                    longjmp(env,error_malformed_closing_tag);
                 }
                 ObjectToAttachResultsP=ObjectToAttachResultsP->parent;
             break;
             case MWMstart_res_element_start:;
                 {   //these brackets are here, so one cannot access newXmlElementDlP after the corresponding memory block was freed
                     struct xmlTreeElement* newXmlElementP=(struct xmlTreeElement*)malloc(sizeof(struct xmlTreeElement));
-                    newXmlElementP->attributes=DlCreate(sizeof(struct key_val_pair),0,dynlisttype_keyValuePairsp);
-                    newXmlElementP->name=DlCreate(sizeof(uint32_t),0,dynlisttype_utf32chars);
+                    newXmlElementP->attributes=DlCreate(sizeof(struct key_val_pair),0,DlType_KeyValPairP);
+                    newXmlElementP->name=DlCreate(sizeof(uint32_t),0,DlType_utf32);
                     newXmlElementP->parent=ObjectToAttachResultsP;
-                    dprintf(DBGT_INFO,"Current object address %x",ObjectToAttachResultsP);
                     newXmlElementP->type=xmltype_tag;
-                    newXmlElementP->content=DlCreate(sizeof(struct xmlTreeElement*),0,dynlisttype_xmlELMNTCollectionp);
+                    newXmlElementP->content=DlCreate(sizeof(struct xmlTreeElement*),0,DlType_xmlElmntP);
                     ObjectToAttachResultsP->content=DlAppend(sizeof(struct xmlTreeElement*),ObjectToAttachResultsP->content,&newXmlElementP);
                 }
-                ObjectToAttachResultsP=((struct DynamicList**)ObjectToAttachResultsP->content->items)[ObjectToAttachResultsP->content->itemcnt-1];
+                ObjectToAttachResultsP=((struct xmlTreeElement**)ObjectToAttachResultsP->content->items)[ObjectToAttachResultsP->content->itemcnt-1];
                 enum{MWMres_el_etag_nonEmpty=0,MWMres_el_etag_empty=1};
                 switch(parseNameAndAttrib(xmlFileDlP,offsetInXMLfilep,ObjectToAttachResultsP,MWM_element_end)){  //TODO check if change from newXmlElementP to ObjectToAttachResults is ok
                     case MWMres_el_etag_nonEmpty:
-                        dprintf(DBGT_INFO,"Now one layer deeper");
+                        //dprintf(DBGT_INFO,"Now one layer deeper");
                     break;
                     case MWMres_el_etag_empty:
                         ObjectToAttachResultsP=ObjectToAttachResultsP->parent;
                     break;
                     default:
                         dprintf(DBGT_ERROR,"An error occured while parsing an element start or end tag");
+                        exit(1);
                     break;
                 }
             break;
             case MWMstart_res_IllegalChar:
                 dprintf(DBGT_ERROR,"Illegal character found in xml, offset=%d",(*offsetInXMLfilep));
+                exit(1);
             break;
             default:
                 //no tag found, so continue to process character data
@@ -167,33 +182,33 @@ int match_loop(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct 
                         CharDataEndOffset--;
                     }
                 }
-                if(CharDataStartOffset<CharDataEndOffset){
-                    //there was valid chardata
-                    struct xmlTreeElement* newCharDataElementP=(struct xmlTreeElement*)malloc(sizeof(struct xmlTreeElement));    //get first element of new list
-                    dprintf(DBGT_INFO,"Creating new xml element for chardata of length %d",CharDataEndOffset-CharDataStartOffset);
-                    newCharDataElementP->attributes=DlCreate(sizeof(struct key_val_pair),0,dynlisttype_keyValuePairsp);
-                    newCharDataElementP->name=DlCreate(sizeof(uint32_t),0,dynlisttype_utf32chars);
-                    newCharDataElementP->parent=ObjectToAttachResultsP;
-                    newCharDataElementP->type=xmltype_chardata;
-                    newCharDataElementP->content=DlCreate(sizeof(uint32_t),CharDataEndOffset-CharDataStartOffset,dynlisttype_utf32chars);
-                    memcpy(newCharDataElementP->content->items,(uint32_t*)(xmlFileDlP->items)+CharDataStartOffset,sizeof(uint32_t)*(CharDataEndOffset-CharDataStartOffset));
-                    //attach new chardata element to parrent
-                    ObjectToAttachResultsP->content=DlAppend(sizeof(struct xmlTreeElement*),ObjectToAttachResultsP->content,&newCharDataElementP);
-                }else{
-                    dprintf(DBGT_ERROR,"unexpected < in file");
-                    return -1;
-                }
                 if(match_res<0){    //no new opening tag found
                     if((*offsetInXMLfilep)>=xmlFileDlP->itemcnt){
                         if(ObjectToAttachResultsP->parent!=0){
                             dprintf(DBGT_ERROR,"Unexpected EOF during maching");
                         }else{
                             dprintf(DBGT_INFO,"Finished parsing");
-                            return 0;
+                            return;
                         }
                     }else{
                         dprintf(DBGT_ERROR,"Unexpected character during parsing");
                     }
+                }
+                if(CharDataStartOffset<CharDataEndOffset){
+                    //there was valid chardata
+                    struct xmlTreeElement* newCharDataElementP=(struct xmlTreeElement*)malloc(sizeof(struct xmlTreeElement));    //get first element of new list
+                    //dprintf(DBGT_INFO,"Creating new xml element for chardata of length %d",CharDataEndOffset-CharDataStartOffset);
+                    newCharDataElementP->attributes=DlCreate(sizeof(struct key_val_pair),0,DlType_KeyValPairP);
+                    newCharDataElementP->name=DlCreate(sizeof(uint32_t),0,DlType_utf32);
+                    newCharDataElementP->parent=ObjectToAttachResultsP;
+                    newCharDataElementP->type=xmltype_chardata;
+                    newCharDataElementP->content=DlCreate(sizeof(uint32_t),CharDataEndOffset-CharDataStartOffset,DlType_utf32);
+                    memcpy(newCharDataElementP->content->items,(uint32_t*)(xmlFileDlP->items)+CharDataStartOffset,sizeof(uint32_t)*(CharDataEndOffset-CharDataStartOffset));
+                    //attach new chardata element to parrent
+                    ObjectToAttachResultsP->content=DlAppend(sizeof(struct xmlTreeElement*),ObjectToAttachResultsP->content,&newCharDataElementP);
+                }else{
+                    dprintf(DBGT_ERROR,"unexpected < in file");
+                    exit(1);
                 }
             break;
         }
@@ -203,15 +218,17 @@ int match_loop(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct 
 int parseXMLDecl(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResultsP){
     if(ObjectToAttachResultsP->parent!=0){//this is not the root element, the doctype tag is not allowed to appear here
         dprintf(DBGT_ERROR,"unexpected <?xml");
+        longjmp(env,error_illegal_xmldecl_placement);
     }
     if(ObjectToAttachResultsP->attributes->itemcnt!=0){
         dprintf(DBGT_ERROR,"<?xml occured more than one or after Doctype");
+        longjmp(env,error_illegal_xmldecl_placement);
     }
-    ObjectToAttachResultsP->name=DlCombine_freeArg23(sizeof(uint32_t),ObjectToAttachResultsP->name,stringToUTF32Dynlist("xml"));
-    parseAttrib(xmlFileDlP,offsetInXMLfilep,ObjectToAttachResultsP,WM_XMLDecl_end);
+    ObjectToAttachResultsP->name=DlCombine_freeArg23(sizeof(uint32_t),ObjectToAttachResultsP->name,Dl_utf32_fromString("xml"));
+    return parseAttrib(xmlFileDlP,offsetInXMLfilep,ObjectToAttachResultsP,WM_XMLDecl_end);
 }
 
-int parseDoctype(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResultsP){
+void parseDoctype(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResultsP){
     dprintf(DBGT_ERROR,"Doctype not implemented!");
     exit(1);
 }
@@ -219,22 +236,22 @@ int parseDoctype(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struc
 //return indicates unexpected eof
 int parseNameAndAttrib(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResultsP,struct DynamicList* MWM_EndTagDlP){
     uint32_t nameStartOffset=(*offsetInXMLfilep)-1; //the previous matcher also checked for a valid name start character
-    dprintf(DBGT_INFO,"nameStartOffset: %d",nameStartOffset);
+    //dprintf(DBGT_INFO,"nameStartOffset: %d",nameStartOffset);
     int matchResult=Match(xmlFileDlP,offsetInXMLfilep,MWM_EndTagDlP,CM_NameChar);
     uint32_t nameEndOffset=(*offsetInXMLfilep);
-    dprintf(DBGT_INFO,"nameEndOffset: %d",nameEndOffset);
+    //dprintf(DBGT_INFO,"nameEndOffset: %d",nameEndOffset);
     if(matchResult<0){
         if(MatchAndIncrement(xmlFileDlP,offsetInXMLfilep,CM_SpaceChar,0)<0){        //there must be a space, after the element if attributes follow
             dprintf(DBGT_ERROR,"Invalid character in element name");
-            return -1;
+            exit(1);
         }
     }else{
         uint32_t lengthOfApplyingEndTag=((struct DynamicList**)(MWM_EndTagDlP->items))[matchResult]->itemcnt;
         (*offsetInXMLfilep)+=lengthOfApplyingEndTag;
     }
-    struct DynamicList* nameDlP=DlCreate(sizeof(uint32_t),nameEndOffset-nameStartOffset,dynlisttype_utf32chars);
+    struct DynamicList* nameDlP=DlCreate(sizeof(uint32_t),nameEndOffset-nameStartOffset,DlType_utf32);
     memcpy(nameDlP->items,(uint32_t*)(xmlFileDlP->items)+nameStartOffset,sizeof(uint32_t)*(nameEndOffset-nameStartOffset));
-    dprintf(DBGT_INFO,"Found element with name: %s",utf32dynlist_to_string(nameDlP));
+    //dprintf(DBGT_INFO,"Found element with name: %s",Dl_utf32_toString(nameDlP));
     ObjectToAttachResultsP->name=DlCombine_freeArg2(sizeof(uint32_t),ObjectToAttachResultsP->name,nameDlP);
     if(matchResult>=0){
         return matchResult;
@@ -252,14 +269,14 @@ int parseAttrib(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct
         if(matchRes<0){
             if(MatchAndIncrement(xmlFileDlP,offsetInXMLfilep,CM_NameStartChar,0)<0){
                 dprintf(DBGT_ERROR,"unexpected character hex: %x as first attribute",((uint32_t*)xmlFileDlP->items)[*offsetInXMLfilep]);
-                return -1;
+                exit(1);
             }
         }else{
             return matchRes;
         }
         //jump to end of key
         enum {MCMres_pA_Space=0,MCMres_pA_Equals=1};
-        struct DynamicList* MCM_AttNameEndOrEqual=createMultiCharMatchList(2,CM_SpaceChar,CM_Equals);
+        struct DynamicList* MCM_AttNameEndOrEqual=Dl_MCMatchP_create(2,CM_SpaceChar,CM_Equals);
         switch(MatchAndIncrement(xmlFileDlP,offsetInXMLfilep,MCM_AttNameEndOrEqual,CM_NameChar)){
             case MCMres_pA_Space:
                 attKeyEndOffset=(*offsetInXMLfilep)-1;
@@ -276,7 +293,7 @@ int parseAttrib(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct
             break;
         }
         //write key
-        struct DynamicList* keyDlP=DlCreate(sizeof(uint32_t),attKeyEndOffset-attKeyStartOffset,dynlisttype_utf32chars);
+        struct DynamicList* keyDlP=DlCreate(sizeof(uint32_t),attKeyEndOffset-attKeyStartOffset,DlType_utf32);
         memcpy(keyDlP->items,(uint32_t*)(xmlFileDlP->items)+attKeyStartOffset,sizeof(uint32_t)*(attKeyEndOffset-attKeyStartOffset));
 
         //jump to start of value
@@ -303,87 +320,89 @@ int parseAttrib(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct
             break;
         }
         //write value
-        struct DynamicList* valueDlP=DlCreate(sizeof(uint32_t),attValEndOffset-attValStartOffset,dynlisttype_utf32chars);
+        struct DynamicList* valueDlP=DlCreate(sizeof(uint32_t),attValEndOffset-attValStartOffset,DlType_utf32);
         memcpy(valueDlP->items,(uint32_t*)(xmlFileDlP->items)+attValStartOffset,sizeof(uint32_t)*(attValEndOffset-attValStartOffset));
         //combine into key value pair and append to xmlTagAttributes
-        struct DynamicList* newAttributeDlP=DlCreate(sizeof(struct key_val_pair),1,dynlisttype_keyValuePairsp);
+        struct DynamicList* newAttributeDlP=DlCreate(sizeof(struct key_val_pair),1,DlType_KeyValPairP);
         struct key_val_pair* key_valP=(struct key_val_pair*)newAttributeDlP->items;
         key_valP->key=keyDlP;
         key_valP->value=valueDlP;
-        dprintf(DBGT_INFO,"new key:\t%s\nnew value:\t%s",utf32dynlist_to_string(keyDlP),utf32dynlist_to_string(valueDlP));
+        //dprintf(DBGT_INFO,"new key:\t%s\nnew value:\t%s",Dl_utf32_toString(keyDlP),Dl_utf32_toString(valueDlP));
         ObjectToAttachResultsP->attributes=DlCombine_freeArg23(sizeof(struct key_val_pair),ObjectToAttachResultsP->attributes,newAttributeDlP);
-        dprintf(DBGT_INFO,"new itemcnt of attribute %d",ObjectToAttachResultsP->attributes->itemcnt);
+        //dprintf(DBGT_INFO,"new itemcnt of attribute %d",ObjectToAttachResultsP->attributes->itemcnt);
     }
 }
 
-int parseComment(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResultsP){
+void parseComment(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResultsP){
     uint32_t commentStartOffset=(*offsetInXMLfilep);
     struct xmlTreeElement* CommentXmlElementP=(struct xmlTreeElement*)malloc(sizeof(struct xmlTreeElement));
     CommentXmlElementP->type=xmltype_comment;
-    CommentXmlElementP->name=DlCreate(sizeof(uint32_t),0,dynlisttype_utf32chars);
-    CommentXmlElementP->attributes=DlCreate(sizeof(struct key_val_pair),0,dynlisttype_keyValuePairsp);
+    CommentXmlElementP->name=DlCreate(sizeof(uint32_t),0,DlType_utf32);
+    CommentXmlElementP->attributes=DlCreate(sizeof(struct key_val_pair),0,DlType_KeyValPairP);
     CommentXmlElementP->parent=ObjectToAttachResultsP;
     if(MatchAndIncrement(xmlFileDlP,offsetInXMLfilep,WM_comment_end,CM_AnyChar)){   //unexpected eof
         dprintf(DBGT_ERROR,"Unexpected end of file while scanning comment, start tag for comment on offset %d",commentStartOffset);
     }
     uint32_t commentEndOffset=(*offsetInXMLfilep)-WM_comment_end->itemcnt;
-    struct DynamicList* CommentCDataDlP=DlCreate(sizeof(uint32_t),commentEndOffset-commentStartOffset,dynlisttype_utf32chars);
+    struct DynamicList* CommentCDataDlP=DlCreate(sizeof(uint32_t),commentEndOffset-commentStartOffset,DlType_utf32);
     memcpy(CommentCDataDlP->items,((uint32_t*)xmlFileDlP->items)+commentStartOffset,sizeof(uint32_t)*(commentEndOffset-commentStartOffset));
     CommentXmlElementP->content=CommentCDataDlP;
     //Append new xmlElement with type comment to parent
     ObjectToAttachResultsP->content=DlAppend(sizeof(struct xmlTreeElement*),ObjectToAttachResultsP->content,&CommentXmlElementP);
 }
 
-int parsePi(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResultsP){
+void parsePi(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResultsP){
     uint32_t piNameStartOffset=(*offsetInXMLfilep)-1; //the previous matcher also checked for a valid name start character
     int matchResult=Match(xmlFileDlP,offsetInXMLfilep,WM_pi_end,CM_NameChar);
     uint32_t piNameEndOffset=(*offsetInXMLfilep);
     if((matchResult<0) && (MatchAndIncrement(xmlFileDlP,offsetInXMLfilep,CM_SpaceChar,0)<0)){        //there must be a space, after the element if attributes follow
         dprintf(DBGT_ERROR,"Invalid character in pi name");
-        return -1;
+        exit(1);
     }
-    struct DynamicList* nameDlP=DlCreate(sizeof(uint32_t),piNameEndOffset-piNameStartOffset,dynlisttype_utf32chars);
+    struct DynamicList* nameDlP=DlCreate(sizeof(uint32_t),piNameEndOffset-piNameStartOffset,DlType_utf32);
     memcpy(nameDlP->items,(uint32_t*)(xmlFileDlP->items)+piNameStartOffset,sizeof(uint32_t)*(piNameEndOffset-piNameStartOffset));
     struct xmlTreeElement* PiXmlElementP=(struct xmlTreeElement*)malloc(sizeof(struct xmlTreeElement));
     PiXmlElementP->type=xmltype_pi;
     PiXmlElementP->name=nameDlP;
-    PiXmlElementP->attributes=DlCreate(sizeof(struct key_val_pair),0,dynlisttype_keyValuePairsp);
+    PiXmlElementP->attributes=DlCreate(sizeof(struct key_val_pair),0,DlType_KeyValPairP);
     PiXmlElementP->parent=ObjectToAttachResultsP;
-    PiXmlElementP->content=DlCreate(sizeof(uint32_t),0,dynlisttype_utf32chars);
+    PiXmlElementP->content=DlCreate(sizeof(uint32_t),0,DlType_utf32);
     ObjectToAttachResultsP->content=DlAppend(sizeof(struct xmlTreeElement*),ObjectToAttachResultsP->content,&PiXmlElementP);
     if(matchResult>=0){
         (*offsetInXMLfilep)+=WM_pi_end->itemcnt;
-        return 0;
+        return;
     }else{
         uint32_t piContentStartOffset=(*offsetInXMLfilep);
         if(MatchAndIncrement(xmlFileDlP,offsetInXMLfilep,WM_pi_end,CM_AnyChar)<0){
             dprintf(DBGT_ERROR,"Unexpected eof");
-            return -2;
+            exit(1);
         }else{
             uint32_t piContentEndOffset=(*offsetInXMLfilep)-WM_pi_end->itemcnt;
-            struct DynamicList* PiContentDlP=DlCreate(sizeof(uint32_t),piContentEndOffset-piContentStartOffset,dynlisttype_utf32chars);
+            struct DynamicList* PiContentDlP=DlCreate(sizeof(uint32_t),piContentEndOffset-piContentStartOffset,DlType_utf32);
             memcpy(PiContentDlP->items,((uint32_t*)xmlFileDlP->items)+piContentStartOffset,sizeof(uint32_t)*(piContentEndOffset-piContentStartOffset));
             PiXmlElementP->content=DlCombine_freeArg2(sizeof(uint32_t),PiXmlElementP->content,PiContentDlP);
-            return 0;
+            return;
         }
     }
 }
 
-int parseCdata(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResultsP){
+void parseCdata(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResultsP){
     if(ObjectToAttachResultsP->parent==0){
         dprintf(DBGT_ERROR,"CData is only allowed to occur inside tags");
+        exit(1);
     }
     uint32_t cDataStartOffset=(*offsetInXMLfilep);
     struct xmlTreeElement* CDataXmlElementP=(struct xmlTreeElement*)malloc(sizeof(struct xmlTreeElement));
     CDataXmlElementP->type=xmltype_cdata;
-    CDataXmlElementP->name=DlCreate(sizeof(uint32_t*),0,dynlisttype_utf32chars);
-    CDataXmlElementP->attributes=DlCreate(sizeof(struct key_val_pair),0,dynlisttype_keyValuePairsp);
+    CDataXmlElementP->name=DlCreate(sizeof(uint32_t*),0,DlType_utf32);
+    CDataXmlElementP->attributes=DlCreate(sizeof(struct key_val_pair),0,DlType_KeyValPairP);
     CDataXmlElementP->parent=ObjectToAttachResultsP;
     if(MatchAndIncrement(xmlFileDlP,offsetInXMLfilep,WM_cdata_end,CM_AnyChar)){   //unexpected eof
         dprintf(DBGT_ERROR,"Unexpected end of file while scanning comment, start tag for cdata on offset %d",cDataStartOffset);
+        exit(1);
     }
     uint32_t cDataEndOffset=(*offsetInXMLfilep)-WM_cdata_end->itemcnt;
-    struct DynamicList* CDataDlP=DlCreate(sizeof(uint32_t),cDataEndOffset-cDataStartOffset,dynlisttype_utf32chars);
+    struct DynamicList* CDataDlP=DlCreate(sizeof(uint32_t),cDataEndOffset-cDataStartOffset,DlType_utf32);
     memcpy(CDataDlP->items,((uint32_t*)xmlFileDlP->items)+cDataStartOffset,sizeof(uint32_t)*(cDataEndOffset-cDataStartOffset));
     CDataXmlElementP->content=CDataDlP;
     //Append new xmlElement with type cdata to parent
@@ -391,7 +410,7 @@ int parseCdata(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct 
 }
 
 
-struct DynamicList* xmlDOMtoUTF32(struct xmlTreeElement* startingElement, int formating,int numSpacesIndent);
+
 int writeXML(FILE* xmlOutFile,struct xmlTreeElement* inputDocumentRootP){
     struct DynamicList* utf32XmlDlP=xmlDOMtoUTF32(inputDocumentRootP,1,4);
     uint8_t* datap=(uint8_t*)malloc(sizeof(uint8_t)*4*utf32XmlDlP->itemcnt);
@@ -406,8 +425,8 @@ int writeXML(FILE* xmlOutFile,struct xmlTreeElement* inputDocumentRootP){
 }
 
 
-struct DynamicList* xmlDOMtoUTF32(struct xmlTreeElement* startingElement, int formating,int numSpacesIndent){
-    struct DynamicList* returnUtf32StringDlP=DlCreate(sizeof(uint32_t),0,dynlisttype_utf32chars);
+struct DynamicList* xmlDOMtoUTF32(struct xmlTreeElement* startingElement, int formating, int numSpacesIndent){
+    struct DynamicList* returnUtf32StringDlP=DlCreate(sizeof(uint32_t),0,DlType_utf32);
     //TODO parse attributes of DocumentRoots, keep in mind newline is before start tag
     struct xmlTreeElement* LastXMLTreeElementP=startingElement->parent;
     struct xmlTreeElement* CurrentXMLTreeElementP=startingElement;
@@ -423,100 +442,93 @@ struct DynamicList* xmlDOMtoUTF32(struct xmlTreeElement* startingElement, int fo
                 case xmltype_docRoot:
                     //print "<xml"
                     {
-                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("<?"));
+                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,Dl_utf32_fromString("<?"));
                         returnUtf32StringDlP=DlCombine_freeArg2(sizeof(uint32_t),returnUtf32StringDlP,CurrentXMLTreeElementP->name);
                     }
                     //print optional attributes
                     for(uint32_t attributenum=0; attributenum<CurrentXMLTreeElementP->attributes->itemcnt; attributenum++){
                         struct DynamicList* KeyDynlistp=(((struct key_val_pair*)CurrentXMLTreeElementP->attributes->items)[attributenum]).key;
                         struct DynamicList* ValDynlistp=(((struct key_val_pair*)CurrentXMLTreeElementP->attributes->items)[attributenum]).value;
-                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist(" "));
+                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,Dl_utf32_fromString(" "));
                         returnUtf32StringDlP=DlCombine_freeArg2(sizeof(uint32_t),returnUtf32StringDlP,KeyDynlistp);
-                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("=\""));
+                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,Dl_utf32_fromString("=\""));
                         returnUtf32StringDlP=DlCombine_freeArg2(sizeof(uint32_t),returnUtf32StringDlP,ValDynlistp);
-                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("\""));
+                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,Dl_utf32_fromString("\""));
                     }
                     //print right closing tag "?>"
-                    returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("?>"));
+                    returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,Dl_utf32_fromString("?>"));
                     //do not change depth, the document root acts like a processing instruction
                     subindex=subindex_needs_reinitialization;
                 break;
                 case xmltype_tag:
                     //print "<tagname"
                     {
-                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("<"));
+                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,Dl_utf32_fromString("<"));
                         returnUtf32StringDlP=DlCombine_freeArg2(sizeof(uint32_t),returnUtf32StringDlP,CurrentXMLTreeElementP->name);
                     }
                     //print optional attributes
                     for(uint32_t attributenum=0; attributenum<CurrentXMLTreeElementP->attributes->itemcnt; attributenum++){
                         struct DynamicList* KeyDynlistp=(((struct key_val_pair*)CurrentXMLTreeElementP->attributes->items)[attributenum]).key;
                         struct DynamicList* ValDynlistp=(((struct key_val_pair*)CurrentXMLTreeElementP->attributes->items)[attributenum]).value;
-                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist(" "));
+                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,Dl_utf32_fromString(" "));
                         returnUtf32StringDlP=DlCombine_freeArg2(sizeof(uint32_t),returnUtf32StringDlP,KeyDynlistp);
-                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("=\""));
+                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,Dl_utf32_fromString("=\""));
                         returnUtf32StringDlP=DlCombine_freeArg2(sizeof(uint32_t),returnUtf32StringDlP,ValDynlistp);
-                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("\""));
+                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,Dl_utf32_fromString("\""));
                     }
                     //print right closing tag (either > or />)
                     if(CurrentXMLTreeElementP->content->itemcnt){
                         //we have at least one valid subelement, so print ">"
-                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist(">"));
+                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,Dl_utf32_fromString(">"));
                         //Jump to the next subelement
-                        currentDepth++;
                         subindex=subindex_needs_reinitialization;
                     }else{
                         //there are no subelements, so print "/>"
-                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("/>"));
+                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,Dl_utf32_fromString("/>"));
                     }
                 break;
                 case xmltype_cdata:
-                    returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("<![CDATA["));
+                    returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,Dl_utf32_fromString("<![CDATA["));
                     returnUtf32StringDlP=DlCombine_freeArg2(sizeof(uint32_t),returnUtf32StringDlP,CurrentXMLTreeElementP->content);
-                    returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("]]>"));
+                    returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,Dl_utf32_fromString("]]>"));
                 break;
                 case xmltype_chardata:
                     //test to confirm no < or & characters are inside
                     returnUtf32StringDlP=DlCombine_freeArg2(sizeof(uint32_t),returnUtf32StringDlP,CurrentXMLTreeElementP->content);
                 break;
                 case xmltype_comment:
-                    returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("<!--"));
+                    returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,Dl_utf32_fromString("<!--"));
                     returnUtf32StringDlP=DlCombine_freeArg2(sizeof(uint32_t),returnUtf32StringDlP,CurrentXMLTreeElementP->content);
-                    returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("-->"));
+                    returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,Dl_utf32_fromString("-->"));
                 break;
                 case xmltype_pi:
-                    returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("<?"));
+                    returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,Dl_utf32_fromString("<?"));
                     returnUtf32StringDlP=DlCombine_freeArg2(sizeof(uint32_t),returnUtf32StringDlP,CurrentXMLTreeElementP->name);
                     if(CurrentXMLTreeElementP->content->itemcnt){
-                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist(" "));
+                        returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,Dl_utf32_fromString(" "));
                         returnUtf32StringDlP=DlCombine_freeArg2(sizeof(uint32_t),returnUtf32StringDlP,CurrentXMLTreeElementP->content);
                     }
-                    returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("?>"));
+                    returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,Dl_utf32_fromString("?>"));
                 break;
                 default:
                     dprintf(DBGT_ERROR,"Tag of this type is not handled (type %x)",CurrentXMLTreeElementP->type);
                 break;
             }
-            if(subindex!=subindex_needs_reinitialization){
-                //successfully parsed last element, so increment subindex
-                //are we the last child inside out parent
-                if(subindex!=subindex_needs_reinitialization&&(++subindex)==CurrentXMLTreeElementP->parent->content->itemcnt){
-                    //yes, then one level upward
-                    LastXMLTreeElementP=CurrentXMLTreeElementP;
-                    CurrentXMLTreeElementP=CurrentXMLTreeElementP->parent;
-                }else{
-                    //
-                    CurrentXMLTreeElementP=(((struct xmlTreeElement**)CurrentXMLTreeElementP->parent->content->items)[subindex]);
-                }
-            }else{
+            if(subindex==subindex_needs_reinitialization){
                 //reinitialize pointers to parse first subelement
+                currentDepth++;
                 subindex=0;
                 CurrentXMLTreeElementP=(((struct xmlTreeElement**)CurrentXMLTreeElementP->content->items)[subindex]);
                 LastXMLTreeElementP=CurrentXMLTreeElementP->parent;
+            }else{
+                //invert walking direction, because there are no further child elements
+                LastXMLTreeElementP=CurrentXMLTreeElementP;
+                CurrentXMLTreeElementP=CurrentXMLTreeElementP->parent;
             }
         }else{
             //go back upward
             //get subindex from the view of the parent
-            int subindex_of_child_we_came_from=0;
+            uint32_t subindex_of_child_we_came_from=0;
             while(subindex_of_child_we_came_from<CurrentXMLTreeElementP->content->itemcnt && LastXMLTreeElementP!=((struct xmlTreeElement**)CurrentXMLTreeElementP->content->items)[subindex_of_child_we_came_from]){
                 subindex_of_child_we_came_from++;
             }
@@ -526,9 +538,9 @@ struct DynamicList* xmlDOMtoUTF32(struct xmlTreeElement* startingElement, int fo
                 currentDepth--;
                 //write closing tag
                 if(CurrentXMLTreeElementP->type!=xmltype_docRoot){//do not write a closing </xml> element on the end of our output
-                    returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist("</"));
+                    returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,Dl_utf32_fromString("</"));
                     returnUtf32StringDlP=DlCombine_freeArg2(sizeof(uint32_t),returnUtf32StringDlP,CurrentXMLTreeElementP->name);
-                    returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,stringToUTF32Dynlist(">"));
+                    returnUtf32StringDlP=DlCombine_freeArg23(sizeof(uint32_t),returnUtf32StringDlP,Dl_utf32_fromString(">"));
                 }
                 //Move one level upward
                 LastXMLTreeElementP=CurrentXMLTreeElementP;

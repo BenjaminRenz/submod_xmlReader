@@ -7,6 +7,7 @@
 
 #include <xmlReader/stringutils.h>
 
+
 struct DynamicList* DlCreate(size_t sizeofListElements,uint32_t NumOfNewElements,uint32_t typeId){
     struct DynamicList* newDynList;
     newDynList=(struct DynamicList*) malloc(sizeof(struct DynamicList)+sizeofListElements*NumOfNewElements);
@@ -20,10 +21,10 @@ struct DynamicList* DlCreate(size_t sizeofListElements,uint32_t NumOfNewElements
     return newDynList;
 }
 
-struct DynamicList* createCharMatchList(uint32_t argumentCount,...){ //only pass uint32_t to this function!!, Matches from even character to next odd character
+struct DynamicList* Dl_CMatch_create(uint32_t argumentCount,...){ //only pass uint32_t to this function!!, Matches from even character to next odd character
     va_list argp;
     va_start(argp, argumentCount);
-    struct DynamicList* DynListPtr=DlCreate(sizeof(uint32_t),argumentCount,ListType_CharMatch);
+    struct DynamicList* DynListPtr=DlCreate(sizeof(uint32_t),argumentCount,DlType_CMatch);
     for(uint32_t item=0;item<argumentCount;item++){
        ((uint32_t*)DynListPtr->items)[item]=va_arg(argp, uint32_t);
     }
@@ -31,10 +32,10 @@ struct DynamicList* createCharMatchList(uint32_t argumentCount,...){ //only pass
     return DynListPtr;
 }
 
-struct DynamicList* createWordMatchList(uint32_t argumentCount,...){ //in case you want to match a word with characters defined by the CharMatchLists like (abc acb bca bac cab cba)
+struct DynamicList* Dl_WMatchP_create(uint32_t argumentCount,...){ //in case you want to match a word with characters defined by the CharMatchLists like (abc acb bca bac cab cba)
     va_list argp;
     va_start(argp, argumentCount);
-    struct DynamicList* DynListPtr=DlCreate(sizeof(struct DynamicList*),argumentCount,ListType_WordMatchp);
+    struct DynamicList* DynListPtr=DlCreate(sizeof(struct DynamicList*),argumentCount,DlType_WMatchP);
     for(uint32_t item=0;item<argumentCount;item++){
        ((struct DynamicList**)DynListPtr->items)[item]=va_arg(argp, struct DynamicList*);
     }
@@ -42,10 +43,10 @@ struct DynamicList* createWordMatchList(uint32_t argumentCount,...){ //in case y
     return DynListPtr;
 }
 
-struct DynamicList* createMultiWordMatchList(uint32_t argumentCount,...){ //in case you want to match xml and XML but not xMl or XmL
+struct DynamicList* Dl_MWMatchPP_create(uint32_t argumentCount,...){ //in case you want to match xml and XML but not xMl or XmL
     va_list argp;
     va_start(argp, argumentCount);
-    struct DynamicList* DynListPtr=DlCreate(sizeof(struct DynamicList*),argumentCount,ListType_MultiWordMatchp);
+    struct DynamicList* DynListPtr=DlCreate(sizeof(struct DynamicList*),argumentCount,DlType_MWMatchPP);
     for(uint32_t item=0;item<argumentCount;item++){
        ((struct DynamicList**)DynListPtr->items)[item]=va_arg(argp, struct DynamicList*);
     }
@@ -53,10 +54,10 @@ struct DynamicList* createMultiWordMatchList(uint32_t argumentCount,...){ //in c
     return DynListPtr;
 }
 
-struct DynamicList* createMultiCharMatchList(uint32_t argumentCount,...){
+struct DynamicList* Dl_MCMatchP_create(uint32_t argumentCount,...){
     va_list argp;
     va_start(argp, argumentCount);
-    struct DynamicList* DynListPtr=DlCreate(sizeof(struct DynamicList*),argumentCount,ListType_MultiCharMatchp);
+    struct DynamicList* DynListPtr=DlCreate(sizeof(struct DynamicList*),argumentCount,DlType_MCMatchP);
     for(uint32_t item=0;item<argumentCount;item++){
        ((struct DynamicList**)DynListPtr->items)[item]=va_arg(argp, struct DynamicList*);
     }
@@ -64,10 +65,10 @@ struct DynamicList* createMultiCharMatchList(uint32_t argumentCount,...){
     return DynListPtr;
 }
 
-struct DynamicList* stringToUTF32Dynlist(char* inputString){
+struct DynamicList* Dl_utf32_fromString(char* inputString){
     uint32_t stringlength=0;
     while(inputString[stringlength++]){}
-    struct DynamicList* outputString=DlCreate(sizeof(uint32_t),--stringlength,dynlisttype_utf32chars);
+    struct DynamicList* outputString=DlCreate(sizeof(uint32_t),--stringlength,DlType_utf32);
     for(uint32_t index=0;index<stringlength;index++){
         ((uint32_t*)outputString->items)[index]=inputString[index];
     }
@@ -75,17 +76,17 @@ struct DynamicList* stringToUTF32Dynlist(char* inputString){
 }
 
 char* utf32dynlist_to_string_freeArg1(struct DynamicList* utf32dynlist){
-    char* returnString=utf32dynlist_to_string(utf32dynlist);
+    char* returnString=Dl_utf32_toString(utf32dynlist);
     DlDelete(utf32dynlist);
     return returnString;
 }
 
-char* utf32dynlist_to_string(struct DynamicList* utf32dynlist){
-    if(utf32dynlist){
+char* Dl_utf32_toString(struct DynamicList* utf32dynlist){
+    if(!utf32dynlist){
         dprintf(DBGT_ERROR,"list ptr empty");
         return 0;
     }
-    if(utf32dynlist->type!=dynlisttype_utf32chars){
+    if(utf32dynlist->type!=DlType_utf32){
         dprintf(DBGT_ERROR,"incorrect list type");
         return 0;
     }
@@ -108,27 +109,28 @@ void DlDelete(struct DynamicList* DynListPtr){
         return;
     }
     switch(DynListPtr->type){
-        case ListType_WordMatchp:
-        case ListType_MultiWordMatchp:
-        case ListType_MultiCharMatchp:
+        case DlType_WMatchP:
+        case DlType_MWMatchPP:
+        case DlType_MCMatchP:
             for(uint32_t SubList=0; SubList<(DynListPtr->itemcnt); SubList++){
                 DlDelete(((struct DynamicList**)DynListPtr->items)[SubList]);
             }
+        __attribute__ ((fallthrough));
         default:
             free(DynListPtr);
             break;
     }
 }
 
-uint32_t compareEqualDynamicUTF32List_freeArg2(struct DynamicList* List1UTF32,struct DynamicList* List2UTF32){
-    uint32_t matchRes=compareEqualDynamicUTF32List(List1UTF32,List2UTF32);
+uint32_t Dl_utf32_compareEqual_freeArg2(struct DynamicList* List1UTF32,struct DynamicList* List2UTF32){
+    uint32_t matchRes=Dl_utf32_compareEqual(List1UTF32,List2UTF32);
     if(List2UTF32){
         DlDelete(List2UTF32);
     }
     return matchRes;
 }
 
-uint32_t compareEqualDynamicUTF32List(struct DynamicList* List1UTF32,struct DynamicList* List2UTF32){
+uint32_t Dl_utf32_compareEqual(struct DynamicList* List1UTF32,struct DynamicList* List2UTF32){
     if(!List1UTF32||!List2UTF32){
         dprintf(DBGT_ERROR,"Unexpected Nullptr");
         return 0;
@@ -145,11 +147,11 @@ uint32_t compareEqualDynamicUTF32List(struct DynamicList* List1UTF32,struct Dyna
     return matchFlag;
 }
 
-void printUTF32Dynlist(struct DynamicList* inList){
+void Dl_utf32_print(struct DynamicList* inList){
     if(!inList){
         printf("Error: NullPtr was passed to print UTF32Dynlist\n");
     }
-    if(inList->type!=dynlisttype_utf32chars){
+    if(inList->type!=DlType_utf32){
         printf("Error: Can't Print List, is of wrong type!\n");
     }else{
         char* AsciiStringp=(char*)malloc(sizeof(char)*((inList->itemcnt)+1));
@@ -254,19 +256,21 @@ int MatchAndIncrement(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP
     if(matchIdx<0){
         return matchIdx;
     }
-    if(breakIfMatchDlP->type==ListType_CharMatch||breakIfMatchDlP->type==ListType_MultiCharMatchp){ //shift by one character
+    if(breakIfMatchDlP->type==DlType_CMatch||breakIfMatchDlP->type==DlType_MCMatchP){ //shift by one character
         (*InOutIndexP)++;
         return matchIdx;
     }
-    if(breakIfMatchDlP->type==ListType_WordMatchp){     //shift by number or characters
+    if(breakIfMatchDlP->type==DlType_WMatchP){     //shift by number or characters
         (*InOutIndexP)+=breakIfMatchDlP->itemcnt;
         return matchIdx;
     }
-    if(breakIfMatchDlP->type==ListType_MultiWordMatchp){    //check which word matched and shift by number or characters
+    if(breakIfMatchDlP->type==DlType_MWMatchPP){    //check which word matched and shift by number or characters
         struct DynamicList* MatchingWMDlP=((struct DynamicList**)breakIfMatchDlP->items)[matchIdx];
         (*InOutIndexP)+=MatchingWMDlP->itemcnt;
         return matchIdx;
     }
+    dprintf(DBGT_ERROR,"Invalid list type");
+    exit(1);
 }
 
 int MatchCharRange(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP,struct DynamicList* CMDlP){
@@ -282,7 +286,7 @@ int MatchCharRange(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP,st
 //returns index inside the breakIfMatch List or -1 when no match occurs
 //TODO remember value of InOutIndexP if there is no match write it back
 int Match(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP, struct DynamicList* breakIfMatchDlP, struct DynamicList* skipIfMatchDlP){
-    if(StringInUtf32DlP->type!=dynlisttype_utf32chars){
+    if(StringInUtf32DlP->type!=DlType_utf32){
         dprintf(DBGT_ERROR,"Not a valid utf32 file");
     }
     int MatchIdxSkip=0;
@@ -291,12 +295,12 @@ int Match(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP, struct Dyn
             //check if breakIfMatch has any match
             switch(breakIfMatchDlP->type){
                 int ret;
-                case ListType_CharMatch:
+                case DlType_CMatch:
                     if(((*InOutIndexP)<StringInUtf32DlP->itemcnt) && (ret=MatchCharRange(StringInUtf32DlP,InOutIndexP,breakIfMatchDlP)>-1)){
                         return ret;
                     }
                 break;
-                case ListType_MultiCharMatchp:
+                case DlType_MCMatchP:
                     for(uint32_t MCMidx=0;MCMidx<(breakIfMatchDlP->itemcnt);MCMidx++){        //iterate over sub char match lists
                         struct DynamicList* CMDlP=(((struct DynamicList**)breakIfMatchDlP->items)[MCMidx]);  //get char match list
                         if((*InOutIndexP)<StringInUtf32DlP->itemcnt && (MatchCharRange(StringInUtf32DlP,InOutIndexP,CMDlP)>-1)){
@@ -304,20 +308,21 @@ int Match(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP, struct Dyn
                         }
                     }
                 break;
-                case ListType_WordMatchp:;
-                    uint32_t offsetCopy=(*InOutIndexP);
-                    if((*InOutIndexP)+breakIfMatchDlP->itemcnt<StringInUtf32DlP->itemcnt){ //check that the string was not overshot
-                        for(uint32_t WMidx=0; WMidx<breakIfMatchDlP->itemcnt; WMidx++,offsetCopy++){
-                            struct DynamicList* CMDlP=(((struct DynamicList**)breakIfMatchDlP->items)[WMidx]);
-                            if(1+MatchCharRange(StringInUtf32DlP,&offsetCopy,CMDlP)){
-                                if(WMidx==breakIfMatchDlP->itemcnt-1){return 0;} //if we reached the end of the word
-                            }else{
-                                break;
+                case DlType_WMatchP:;{
+                        uint32_t offsetCopy=(*InOutIndexP);
+                        if((*InOutIndexP)+breakIfMatchDlP->itemcnt<=StringInUtf32DlP->itemcnt){ //check that the string was not overshot
+                            for(uint32_t WMidx=0; WMidx<breakIfMatchDlP->itemcnt; WMidx++,offsetCopy++){
+                                struct DynamicList* CMDlP=(((struct DynamicList**)breakIfMatchDlP->items)[WMidx]);
+                                if(1+MatchCharRange(StringInUtf32DlP,&offsetCopy,CMDlP)){
+                                    if(WMidx==breakIfMatchDlP->itemcnt-1){return 0;} //if we reached the end of the word
+                                }else{
+                                    break;
+                                }
                             }
                         }
                     }
                 break;
-                case ListType_MultiWordMatchp:
+                case DlType_MWMatchPP:
                     for(uint32_t MWMidx=0;MWMidx<(breakIfMatchDlP->itemcnt);MWMidx++){        //iterate over sub word match lists
                         struct DynamicList* WMDlP=(((struct DynamicList**)breakIfMatchDlP->items)[MWMidx]);  //get char match list
                         uint32_t offsetCopy=(*InOutIndexP);
@@ -344,12 +349,12 @@ int Match(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP, struct Dyn
         if(skipIfMatchDlP){
             MatchIdxSkip=-1;
             switch(skipIfMatchDlP->type){
-                case ListType_CharMatch:
+                case DlType_CMatch:
                     if((*InOutIndexP)<StringInUtf32DlP->itemcnt){
                         MatchIdxSkip=MatchCharRange(StringInUtf32DlP,InOutIndexP,skipIfMatchDlP);
                     }
                 break;
-                case ListType_MultiCharMatchp:
+                case DlType_MCMatchP:
                     for(uint32_t MCMidx=0;MCMidx<(skipIfMatchDlP->itemcnt);MCMidx++){        //iterate over sub char match lists
                         struct DynamicList* CMDlP=(((struct DynamicList**)skipIfMatchDlP->items)[MCMidx]);  //get char match list
                         if((*InOutIndexP)<StringInUtf32DlP->itemcnt){
@@ -359,41 +364,43 @@ int Match(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP, struct Dyn
                         }
                     }
                 break;
-                case ListType_WordMatchp:;
-                    uint32_t offsetCopy=(*InOutIndexP);
-                    if((*InOutIndexP)+skipIfMatchDlP->itemcnt<StringInUtf32DlP->itemcnt){ //check that the string was not overshot
-                        for(uint32_t WMidx=0;WMidx<skipIfMatchDlP->itemcnt; WMidx++,offsetCopy++){
-                            struct DynamicList* CMDlP=(((struct DynamicList**)skipIfMatchDlP->items)[WMidx]);
-                            if(1+MatchCharRange(StringInUtf32DlP,&offsetCopy,CMDlP)){
-                                if(WMidx==skipIfMatchDlP->itemcnt-1){
-                                        MatchIdxSkip=0;
+                case DlType_WMatchP:;
+                    {
+                        uint32_t offsetCopy=(*InOutIndexP);
+                        if((*InOutIndexP)+skipIfMatchDlP->itemcnt<StringInUtf32DlP->itemcnt){ //check that the string was not overshot
+                            for(uint32_t WMidx=0;WMidx<skipIfMatchDlP->itemcnt; WMidx++,offsetCopy++){
+                                struct DynamicList* CMDlP=(((struct DynamicList**)skipIfMatchDlP->items)[WMidx]);
+                                if(1+MatchCharRange(StringInUtf32DlP,&offsetCopy,CMDlP)){
+                                    if(WMidx==skipIfMatchDlP->itemcnt-1){
+                                            MatchIdxSkip=0;
+                                        break;
+                                    } //if we reached the end of the word
+                                }else{
                                     break;
-                                } //if we reached the end of the word
-                            }else{
-                                break;
+                                }
                             }
                         }
                     }
                 break;
-                case ListType_MultiWordMatchp:
+                case DlType_MWMatchPP:
                     for(uint32_t MWMidx=0;MWMidx<(skipIfMatchDlP->itemcnt);MWMidx++){        //iterate over sub word match lists
-                    struct DynamicList* WMDlP=(((struct DynamicList**)skipIfMatchDlP->items)[MWMidx]);  //get char match list
-                    uint32_t offsetCopy=(*InOutIndexP);
-                    if((*InOutIndexP)+WMDlP->itemcnt<StringInUtf32DlP->itemcnt){ //check that the string was not overshot
-                        for(uint32_t WMidx=0; WMidx<WMDlP->itemcnt; WMidx++,offsetCopy++){
-                            struct DynamicList* CMDlP=(((struct DynamicList**)WMDlP->items)[WMidx]);
-                            if(1+MatchCharRange(StringInUtf32DlP,&offsetCopy,CMDlP)){
-                                if(WMidx==WMDlP->itemcnt-1){
-                                    MatchIdxSkip=MWMidx;
-                                    MWMidx=skipIfMatchDlP->itemcnt;
+                        struct DynamicList* WMDlP=(((struct DynamicList**)skipIfMatchDlP->items)[MWMidx]);  //get char match list
+                        uint32_t offsetCopy=(*InOutIndexP);
+                        if((*InOutIndexP)+WMDlP->itemcnt<StringInUtf32DlP->itemcnt){ //check that the string was not overshot
+                            for(uint32_t WMidx=0; WMidx<WMDlP->itemcnt; WMidx++,offsetCopy++){
+                                struct DynamicList* CMDlP=(((struct DynamicList**)WMDlP->items)[WMidx]);
+                                if(1+MatchCharRange(StringInUtf32DlP,&offsetCopy,CMDlP)){
+                                    if(WMidx==WMDlP->itemcnt-1){
+                                        MatchIdxSkip=MWMidx;
+                                        MWMidx=skipIfMatchDlP->itemcnt;
+                                        break;
+                                    } //if we reached the end of the word
+                                }else{
                                     break;
-                                } //if we reached the end of the word
-                            }else{
-                                break;
+                                }
                             }
                         }
                     }
-                }
                 break;
                 default:
                     dprintf(DBGT_ERROR,"Invalid list type");
@@ -403,12 +410,12 @@ int Match(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP, struct Dyn
             return -1;
         }
         if(MatchIdxSkip>=0){
-            if(skipIfMatchDlP->type==ListType_CharMatch||skipIfMatchDlP->type==ListType_MultiCharMatchp){ //shift by one character
+            if(skipIfMatchDlP->type==DlType_CMatch||skipIfMatchDlP->type==DlType_MCMatchP){ //shift by one character
                 (*InOutIndexP)++;
-            }else if(skipIfMatchDlP->type==ListType_MultiWordMatchp){    //check which word matched and shift by number or characters
+            }else if(skipIfMatchDlP->type==DlType_MWMatchPP){    //check which word matched and shift by number or characters
                 struct DynamicList* MatchingWMDlP=((struct DynamicList**)skipIfMatchDlP->items)[MatchIdxSkip];
                 (*InOutIndexP)+=MatchingWMDlP->itemcnt;
-            }else if(skipIfMatchDlP->type==ListType_WordMatchp){     //shift by number or characters
+            }else if(skipIfMatchDlP->type==DlType_WMatchP){     //shift by number or characters
                 (*InOutIndexP)+=skipIfMatchDlP->itemcnt;
             }else{
                 dprintf(DBGT_ERROR,"Invalid list type");
@@ -418,16 +425,21 @@ int Match(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP, struct Dyn
     return -1;
 }
 
-struct DynamicList* utf32dynlistStripSpaceChars(struct DynamicList* utf32StringInP){
+struct DynamicList* Dl_utf32_StripSpaces_freeArg1(struct DynamicList* utf32StringInP){
+    struct DynamicList* temp_CM_NonSpaceChar=Dl_CMatch_create(6,0x21,0xd7ff, 0xe000,0xfffd, 0x10000,0x10ffff);   //anything else except space
+    struct DynamicList* temp_CM_SpaceChar=Dl_CMatch_create(8,0x9,0x9, 0xd,0xd, 0xa,0xa, 0x20,0x20);
     uint32_t firstNonSpaceChar=0;
-    MatchAndIncrement(utf32StringInP,&firstNonSpaceChar,CM_NonSpaceChar,CM_SpaceChar);
+    Match(utf32StringInP,&firstNonSpaceChar,temp_CM_NonSpaceChar,temp_CM_SpaceChar);
     uint32_t lastNonSpaceChar;
     for(lastNonSpaceChar=utf32StringInP->itemcnt-1;firstNonSpaceChar<=lastNonSpaceChar;lastNonSpaceChar--){
-        if((-1)==MatchCharRange(utf32StringInP,&lastNonSpaceChar,CM_SpaceChar)){
+        if((-1)==MatchCharRange(utf32StringInP,&lastNonSpaceChar,temp_CM_SpaceChar)){
+            lastNonSpaceChar++;
             break;  //if something different from a space character is found this is our new last character
         }
     }
-    struct DynamicList* outputDynlist=DlCreate(sizeof(uint32_t),lastNonSpaceChar-firstNonSpaceChar,dynlisttype_utf32chars);
+    DlDelete(temp_CM_NonSpaceChar);
+    DlDelete(temp_CM_SpaceChar);
+    struct DynamicList* outputDynlist=DlCreate(sizeof(uint32_t),lastNonSpaceChar-firstNonSpaceChar,DlType_utf32);
     void* srcP=&(((uint32_t*)(utf32StringInP->items))[firstNonSpaceChar]);
     memcpy(outputDynlist->items,srcP,sizeof(uint32_t)*(lastNonSpaceChar-firstNonSpaceChar));
     DlDelete(utf32StringInP);
@@ -438,7 +450,7 @@ struct xmlTreeElement* getNthSubelementOrMisc(struct xmlTreeElement* parentP, ui
     if(parentP->content==0){
         return 0;
     }
-    if(parentP->content->type!=dynlisttype_xmlELMNTCollectionp){
+    if(parentP->content->type!=DlType_xmlElmntP){
         return 0;
     }
     if(parentP->content->itemcnt<=n){
@@ -452,7 +464,7 @@ struct xmlTreeElement* getNthSubelement(struct xmlTreeElement* parentP, uint32_t
         dprintf(DBGT_ERROR,"Element does not contain any subelements, it's empty");
         return 0;
     }
-    if(parentP->content->type!=dynlisttype_xmlELMNTCollectionp){    //does not work when the content is only cdata
+    if(parentP->content->type!=DlType_xmlElmntP){    //does not work when the content is only cdata
         dprintf(DBGT_ERROR,"Element does not contain any subelements, only cdata");
         return 0;
     }
@@ -469,22 +481,14 @@ struct xmlTreeElement* getNthSubelement(struct xmlTreeElement* parentP, uint32_t
     return NULL;   //not enough subelements
 }
 
-//all Name/Key/Value/Type checks must be true for an element to be appended to the returnDlP, or the input to the check must be NULL
-struct DynamicList* getAllSubelementsWith_freeArg234(struct xmlTreeElement* startingElementP,struct DynamicList* NameDynlistP,struct DynamicList* KeyDynlistP, struct DynamicList* ValueDynlistP, uint32_t ElmntType, uint32_t maxDepth){
-    struct DynamicList* returnDlP=getAllSubelementWith(startingElementP,NameDynlistP,KeyDynlistP,ValueDynlistP,ElmntType,maxDepth);
-    //Delete Dynlists if they are valid pointers
-    if(NameDynlistP)    {DlDelete(NameDynlistP);}
-    if(KeyDynlistP)     {DlDelete(KeyDynlistP);}
-    if(ValueDynlistP)   {DlDelete(ValueDynlistP);}
-    return returnDlP;
-}
 
+//TODO maxDepth is completely ignored
 struct DynamicList* getAllSubelementWith(struct xmlTreeElement* startingElementP,struct DynamicList* NameDynlistP,struct DynamicList* KeyDynlistP, struct DynamicList* ValueDynlistP, uint32_t ElmntType, uint32_t maxDepth){
     if(!startingElementP){
         dprintf(DBGT_ERROR,"getFirstSubelement called with empty startingElemenP pointer");
         return NULL;
     }
-    struct DynamicList* returnDlP=DlCreate(sizeof(struct xmlTreeElement),0,dynlisttype_xmlELMNTCollectionp);
+    struct DynamicList* returnDlP=DlCreate(sizeof(struct xmlTreeElement),0,DlType_xmlElmntP);
 
     struct xmlTreeElement* LastXMLTreeElementP=startingElementP->parent;
     struct xmlTreeElement* CurrentXMLTreeElementP=startingElementP;
@@ -502,19 +506,20 @@ struct DynamicList* getAllSubelementWith(struct xmlTreeElement* startingElementP
                         currentDepth++;
                         subindex=subindex_needs_reinitialization;
                     }
+                    __attribute__ ((fallthrough));
                 case xmltype_cdata:
                 case xmltype_chardata:
                 case xmltype_comment:
                 case xmltype_pi:
                     if(NameDynlistP){
-                        if(!compareEqualDynamicUTF32List(CurrentXMLTreeElementP->name,NameDynlistP)){
+                        if(!Dl_utf32_compareEqual(CurrentXMLTreeElementP->name,NameDynlistP)){
                             objectMatches=0;
                         }
                     }
                     if(KeyDynlistP){
                         struct DynamicList* ValueDlP=getValueFromKeyName(CurrentXMLTreeElementP->attributes,KeyDynlistP);
                         if(ValueDlP&&(ValueDlP->itemcnt)){
-                            if(ValueDynlistP&& (!compareEqualDynamicUTF32List(ValueDynlistP,ValueDlP))){
+                            if(ValueDynlistP&& (!Dl_utf32_compareEqual(ValueDynlistP,ValueDlP))){
                                 objectMatches=0;
                             }
                         }else{
@@ -525,7 +530,7 @@ struct DynamicList* getAllSubelementWith(struct xmlTreeElement* startingElementP
                         objectMatches=0;
                     }
                     if(objectMatches){
-                        DlAppend(sizeof(struct xmlTreeElement),returnDlP,CurrentXMLTreeElementP);
+                        returnDlP=DlAppend(sizeof(struct xmlTreeElement*),returnDlP,&CurrentXMLTreeElementP);
                     }
                 break;
                 default:
@@ -535,7 +540,7 @@ struct DynamicList* getAllSubelementWith(struct xmlTreeElement* startingElementP
             if(subindex!=subindex_needs_reinitialization){
                 //successfully parsed last element, so increment subindex
                 //are we the last child inside out parent
-                if(subindex!=subindex_needs_reinitialization&&(++subindex)==CurrentXMLTreeElementP->parent->content->itemcnt){
+                if((uint32_t)(++subindex)==CurrentXMLTreeElementP->parent->content->itemcnt){
                     //yes, then one level upward
                     LastXMLTreeElementP=CurrentXMLTreeElementP;
                     CurrentXMLTreeElementP=CurrentXMLTreeElementP->parent;
@@ -552,7 +557,7 @@ struct DynamicList* getAllSubelementWith(struct xmlTreeElement* startingElementP
         }else{
             //go back upward
             //get subindex from the view of the parent
-            int subindex_of_child_we_came_from=0;
+            uint32_t subindex_of_child_we_came_from=0;
             while(subindex_of_child_we_came_from<CurrentXMLTreeElementP->content->itemcnt && LastXMLTreeElementP!=((struct xmlTreeElement**)CurrentXMLTreeElementP->content->items)[subindex_of_child_we_came_from]){
                 subindex_of_child_we_came_from++;
             }
@@ -567,13 +572,22 @@ struct DynamicList* getAllSubelementWith(struct xmlTreeElement* startingElementP
                 //no, so setup to print it next
                 LastXMLTreeElementP=CurrentXMLTreeElementP;
                 CurrentXMLTreeElementP=(((struct xmlTreeElement**)CurrentXMLTreeElementP->content->items)[subindex_of_child_we_came_from+1]);
-                subindex=subindex_of_child_we_came_from+1;
+                subindex=(int)subindex_of_child_we_came_from+1;
             }
         }
     }while(CurrentXMLTreeElementP!=startingElementP->parent);     //TODO error with abort condition when starting from subelement
     return returnDlP;
 };
 
+//all Name/Key/Value/Type checks must be true for an element to be appended to the returnDlP, or the input to the check must be NULL
+struct DynamicList* getAllSubelementsWith_freeArg234(struct xmlTreeElement* startingElementP,struct DynamicList* NameDynlistP,struct DynamicList* KeyDynlistP, struct DynamicList* ValueDynlistP, uint32_t ElmntType, uint32_t maxDepth){
+    struct DynamicList* returnDlP=getAllSubelementWith(startingElementP,NameDynlistP,KeyDynlistP,ValueDynlistP,ElmntType,maxDepth);
+    //Delete Dynlists if they are valid pointers
+    if(NameDynlistP)    {DlDelete(NameDynlistP);}
+    if(KeyDynlistP)     {DlDelete(KeyDynlistP);}
+    if(ValueDynlistP)   {DlDelete(ValueDynlistP);}
+    return returnDlP;
+}
 
 struct xmlTreeElement* getFirstSubelementWith_freeArg234(struct xmlTreeElement* startElementp,struct DynamicList* NameDynlistP,struct DynamicList* KeyDynlistP, struct DynamicList* ValueDynlistP, uint32_t ElmntType, uint32_t maxDepth){
     struct xmlTreeElement* returnXmlElmntP=getFirstSubelementWith(startElementp,NameDynlistP,KeyDynlistP,ValueDynlistP,ElmntType,maxDepth);
@@ -607,19 +621,20 @@ struct xmlTreeElement* getFirstSubelementWith(struct xmlTreeElement* startingEle
                         currentDepth++;
                         subindex=subindex_needs_reinitialization;
                     }
+                    __attribute__ ((fallthrough));
                 case xmltype_cdata:
                 case xmltype_chardata:
                 case xmltype_comment:
                 case xmltype_pi:
                     if(NameDynlistP){
-                        if(!compareEqualDynamicUTF32List(CurrentXMLTreeElementP->name,NameDynlistP)){
+                        if(!Dl_utf32_compareEqual(CurrentXMLTreeElementP->name,NameDynlistP)){
                             objectMatches=0;
                         }
                     }
                     if(KeyDynlistP){
                         struct DynamicList* ValueDlP=getValueFromKeyName(CurrentXMLTreeElementP->attributes,KeyDynlistP);
                         if(ValueDlP&&(ValueDlP->itemcnt)){
-                            if(ValueDynlistP&& (!compareEqualDynamicUTF32List(ValueDynlistP,ValueDlP))){
+                            if(ValueDynlistP&& (!Dl_utf32_compareEqual(ValueDynlistP,ValueDlP))){
                                 objectMatches=0;
                             }
                         }else{
@@ -640,7 +655,7 @@ struct xmlTreeElement* getFirstSubelementWith(struct xmlTreeElement* startingEle
             if(subindex!=subindex_needs_reinitialization){
                 //successfully parsed last element, so increment subindex
                 //are we the last child inside out parent
-                if(subindex!=subindex_needs_reinitialization&&(++subindex)==CurrentXMLTreeElementP->parent->content->itemcnt){
+                if((uint32_t)(++subindex)==CurrentXMLTreeElementP->parent->content->itemcnt){
                     //yes, then one level upward
                     LastXMLTreeElementP=CurrentXMLTreeElementP;
                     CurrentXMLTreeElementP=CurrentXMLTreeElementP->parent;
@@ -657,7 +672,7 @@ struct xmlTreeElement* getFirstSubelementWith(struct xmlTreeElement* startingEle
         }else{
             //go back upward
             //get subindex from the view of the parent
-            int subindex_of_child_we_came_from=0;
+            uint32_t subindex_of_child_we_came_from=0;
             while(subindex_of_child_we_came_from<CurrentXMLTreeElementP->content->itemcnt && LastXMLTreeElementP!=((struct xmlTreeElement**)CurrentXMLTreeElementP->content->items)[subindex_of_child_we_came_from]){
                 subindex_of_child_we_came_from++;
             }
@@ -672,7 +687,7 @@ struct xmlTreeElement* getFirstSubelementWith(struct xmlTreeElement* startingEle
                 //no, so setup to print it next
                 LastXMLTreeElementP=CurrentXMLTreeElementP;
                 CurrentXMLTreeElementP=(((struct xmlTreeElement**)CurrentXMLTreeElementP->content->items)[subindex_of_child_we_came_from+1]);
-                subindex=subindex_of_child_we_came_from+1;
+                subindex=(int)subindex_of_child_we_came_from+1;
             }
         }
     }while(CurrentXMLTreeElementP!=startingElementP->parent);     //TODO error with abort condition when starting from subelement
@@ -684,7 +699,7 @@ struct DynamicList* DlDuplicate(size_t sizeofListElements,struct DynamicList* in
         dprintf(DBGT_ERROR,"Called with Nullptr");
         return 0;
     }
-    if((inDynlistP->type!=dynlisttype_utf32chars)&&(inDynlistP->type!=ListType_CharMatch)){
+    if((inDynlistP->type!=DlType_utf32)&&(inDynlistP->type!=DlType_CMatch)){
         dprintf(DBGT_ERROR,"currently unsupported list type");
         return 0;
     }
@@ -756,11 +771,14 @@ struct DynamicList* getValueFromKeyName_freeArg2(struct DynamicList* attlist,str
 }
 
 struct DynamicList* getValueFromKeyName(struct DynamicList* attlist,struct DynamicList* nameD2){
+    if(!attlist){
+        dprintf(DBGT_ERROR,"called getValueFromKeyName with nullptr");
+    }
     if(!attlist->itemcnt){
         return 0;
     }
     for(uint32_t index=0;index<attlist->itemcnt;index++){
-        if(compareEqualDynamicUTF32List(((struct key_val_pair*)attlist->items)[index].key,nameD2)){
+        if(Dl_utf32_compareEqual(((struct key_val_pair*)attlist->items)[index].key,nameD2)){
             return ((struct key_val_pair*)attlist->items)[index].value;
         }
     }
@@ -793,16 +811,16 @@ uint32_t nameCheckFkt(struct xmlTreeElement* nameInit_or_xmlElement){
 }
 */
 
-struct DynamicList* utf32dynlistToInts64(struct DynamicList* NumberSeperatorP,struct DynamicList* utf32StringInP){
-    return utf32dynlistToInts64_freeArg1(DlDuplicate(sizeof(uint32_t),NumberSeperatorP),utf32StringInP);
+struct DynamicList* Dl_utf32_to_Dl_int64(struct DynamicList* NumberSeperatorP,struct DynamicList* utf32StringInP){
+    return Dl_utf32_to_Dl_int64_freeArg1(DlDuplicate(sizeof(uint32_t),NumberSeperatorP),utf32StringInP);
 }
 
-struct DynamicList* utf32dynlistToInts64_freeArg1(struct DynamicList* NumberSeperatorP,struct DynamicList* utf32StringInP){
-    if(NumberSeperatorP->type!=ListType_CharMatch||utf32StringInP->type!=dynlisttype_utf32chars){
+struct DynamicList* Dl_utf32_to_Dl_int64_freeArg1(struct DynamicList* NumberSeperatorP,struct DynamicList* utf32StringInP){
+    if(NumberSeperatorP->type!=DlType_CMatch||utf32StringInP->type!=DlType_utf32){
         dprintf(DBGT_ERROR,"Invalid parameter passed to function");
         return 0;
     }
-    struct DynamicList* returnDlP=DlCreate(sizeof(int64_t),0,ListType_int64);
+    struct DynamicList* returnDlP=DlCreate(sizeof(int64_t),0,DlType_int64);
     uint32_t offsetInString=0;
     enum{flag_in_digits=(1<<0),flag_minus_mantis=(1<<1)};
     int32_t flagreg=0;
@@ -822,20 +840,20 @@ struct DynamicList* utf32dynlistToInts64_freeArg1(struct DynamicList* NumberSepe
         match_res_nummatch_nsperator=11,
         match_res_nummatch_illegal=12
     };
-    struct DynamicList* nummatch=createMultiCharMatchList(13,
-        createCharMatchList(2,'0','0'),
-        createCharMatchList(2,'1','1'),
-        createCharMatchList(2,'2','2'),
-        createCharMatchList(2,'3','3'),
-        createCharMatchList(2,'4','4'),
-        createCharMatchList(2,'5','5'),
-        createCharMatchList(2,'6','6'),
-        createCharMatchList(2,'7','7'),
-        createCharMatchList(2,'8','8'),
-        createCharMatchList(2,'9','9'),
-        createCharMatchList(2,'-','-'),
+    struct DynamicList* nummatch=Dl_MCMatchP_create(13,
+        Dl_CMatch_create(2,'0','0'),
+        Dl_CMatch_create(2,'1','1'),
+        Dl_CMatch_create(2,'2','2'),
+        Dl_CMatch_create(2,'3','3'),
+        Dl_CMatch_create(2,'4','4'),
+        Dl_CMatch_create(2,'5','5'),
+        Dl_CMatch_create(2,'6','6'),
+        Dl_CMatch_create(2,'7','7'),
+        Dl_CMatch_create(2,'8','8'),
+        Dl_CMatch_create(2,'9','9'),
+        Dl_CMatch_create(2,'-','-'),
         NumberSeperatorP,
-        createCharMatchList(2,0x00,0xffff)
+        Dl_CMatch_create(2,0x00,0xffff)
     );
     uint32_t matchIndex=0;
     while(offsetInString<utf32StringInP->itemcnt){
@@ -882,12 +900,12 @@ struct DynamicList* utf32dynlistToInts64_freeArg1(struct DynamicList* NumberSepe
 }
 
 
-struct DynamicList* utf32dynlistToDoubles(struct DynamicList* NumberSeperatorP,struct DynamicList* OrderOfMagP, struct DynamicList* DecimalSeperatorP,struct DynamicList* utf32StringInP){
-    return utf32dynlistToDoubles_freeArg123(DlDuplicate(sizeof(uint32_t),NumberSeperatorP),DlDuplicate(sizeof(uint32_t),OrderOfMagP),DlDuplicate(sizeof(uint32_t),DecimalSeperatorP),utf32StringInP);
+struct DynamicList* Dl_utf32_to_Dl_double(struct DynamicList* NumberSeperatorP,struct DynamicList* OrderOfMagP, struct DynamicList* DecimalSeperatorP,struct DynamicList* utf32StringInP){
+    return Dl_utf32_to_Dl_double_freeArg123(DlDuplicate(sizeof(uint32_t),NumberSeperatorP),DlDuplicate(sizeof(uint32_t),OrderOfMagP),DlDuplicate(sizeof(uint32_t),DecimalSeperatorP),utf32StringInP);
 }
 
-struct DynamicList* utf32dynlistToDoubles_freeArg123(struct DynamicList* NumberSeperatorP,struct DynamicList* OrderOfMagP, struct DynamicList* DecimalSeperatorP,struct DynamicList* utf32StringInP){
-    struct DynamicList* returnDlP=DlCreate(sizeof(double),0,ListType_double);
+struct DynamicList* Dl_utf32_to_Dl_double_freeArg123(struct DynamicList* NumberSeperatorP,struct DynamicList* OrderOfMagP, struct DynamicList* DecimalSeperatorP,struct DynamicList* utf32StringInP){
+    struct DynamicList* returnDlP=DlCreate(sizeof(double),0,DlType_double);
     uint32_t offsetInString=0;
     double mantisVal=0;
     enum{flag_in_digits=(1<<0),flag_decplc=(1<<1),flag_in_decplcdigits=(1<<2),flag_orOfMag=(1<<3),flag_in_exp_digits=(1<<4),flag_minus_mantis=(1<<5),flag_minus_exp=(1<<6)};
@@ -911,22 +929,22 @@ struct DynamicList* utf32dynlistToDoubles_freeArg123(struct DynamicList* NumberS
         match_res_nummatch_OrderOfMag=13,
         match_res_nummatch_illegal=14
     };
-    struct DynamicList* nummatch=createMultiCharMatchList(15,
-        createCharMatchList(2,'0','0'),
-        createCharMatchList(2,'1','1'),
-        createCharMatchList(2,'2','2'),
-        createCharMatchList(2,'3','3'),
-        createCharMatchList(2,'4','4'),
-        createCharMatchList(2,'5','5'),
-        createCharMatchList(2,'6','6'),
-        createCharMatchList(2,'7','7'),
-        createCharMatchList(2,'8','8'),
-        createCharMatchList(2,'9','9'),
-        createCharMatchList(2,'-','-'),
+    struct DynamicList* nummatch=Dl_MCMatchP_create(15,
+        Dl_CMatch_create(2,'0','0'),
+        Dl_CMatch_create(2,'1','1'),
+        Dl_CMatch_create(2,'2','2'),
+        Dl_CMatch_create(2,'3','3'),
+        Dl_CMatch_create(2,'4','4'),
+        Dl_CMatch_create(2,'5','5'),
+        Dl_CMatch_create(2,'6','6'),
+        Dl_CMatch_create(2,'7','7'),
+        Dl_CMatch_create(2,'8','8'),
+        Dl_CMatch_create(2,'9','9'),
+        Dl_CMatch_create(2,'-','-'),
         NumberSeperatorP,
         DecimalSeperatorP,
         OrderOfMagP,
-        createCharMatchList(2,0x00,0xffff)
+        Dl_CMatch_create(2,0x00,0xffff)
     );
     while(offsetInString<utf32StringInP->itemcnt){
         //no offset because will match all possible chars
@@ -1047,13 +1065,13 @@ struct DynamicList* utf32dynlistToDoubles_freeArg123(struct DynamicList* NumberS
     return returnDlP;
 }
 
-struct DynamicList* utf32dynlistToFloats(struct DynamicList* NumberSeperatorP,struct DynamicList* OrderOfMagP, struct DynamicList* DecimalSeperatorP,struct DynamicList* utf32StringInP){
-    return utf32dynlistToFloats_freeArg123(DlDuplicate(sizeof(uint32_t),NumberSeperatorP),DlDuplicate(sizeof(uint32_t),OrderOfMagP),DlDuplicate(sizeof(uint32_t),DecimalSeperatorP),utf32StringInP);
+struct DynamicList* Dl_utf32_to_Dl_float(struct DynamicList* NumberSeperatorP,struct DynamicList* OrderOfMagP, struct DynamicList* DecimalSeperatorP,struct DynamicList* utf32StringInP){
+    return Dl_utf32_to_Dl_float_freeArg123(DlDuplicate(sizeof(uint32_t),NumberSeperatorP),DlDuplicate(sizeof(uint32_t),OrderOfMagP),DlDuplicate(sizeof(uint32_t),DecimalSeperatorP),utf32StringInP);
 }
 
 
-struct DynamicList* utf32dynlistToFloats_freeArg123(struct DynamicList* NumberSeperatorP,struct DynamicList* OrderOfMagP, struct DynamicList* DecimalSeperatorP,struct DynamicList* utf32StringInP){
-    struct DynamicList* returnDlP=DlCreate(sizeof(float),0,ListType_float);
+struct DynamicList* Dl_utf32_to_Dl_float_freeArg123(struct DynamicList* NumberSeperatorP,struct DynamicList* OrderOfMagP, struct DynamicList* DecimalSeperatorP,struct DynamicList* utf32StringInP){
+    struct DynamicList* returnDlP=DlCreate(sizeof(float),0,DlType_float);
     uint32_t offsetInString=0;
     float mantisVal=0;
     enum{flag_in_digits=(1<<0),flag_decplc=(1<<1),flag_in_decplcdigits=(1<<2),flag_orOfMag=(1<<3),flag_in_exp_digits=(1<<4),flag_minus_mantis=(1<<5),flag_minus_exp=(1<<6)};
@@ -1077,22 +1095,22 @@ struct DynamicList* utf32dynlistToFloats_freeArg123(struct DynamicList* NumberSe
         match_res_nummatch_OrderOfMag=13,
         match_res_nummatch_illegal=14
     };
-    struct DynamicList* nummatch=createMultiCharMatchList(15,
-        createCharMatchList(2,'0','0'),
-        createCharMatchList(2,'1','1'),
-        createCharMatchList(2,'2','2'),
-        createCharMatchList(2,'3','3'),
-        createCharMatchList(2,'4','4'),
-        createCharMatchList(2,'5','5'),
-        createCharMatchList(2,'6','6'),
-        createCharMatchList(2,'7','7'),
-        createCharMatchList(2,'8','8'),
-        createCharMatchList(2,'9','9'),
-        createCharMatchList(2,'-','-'),
+    struct DynamicList* nummatch=Dl_MCMatchP_create(15,
+        Dl_CMatch_create(2,'0','0'),
+        Dl_CMatch_create(2,'1','1'),
+        Dl_CMatch_create(2,'2','2'),
+        Dl_CMatch_create(2,'3','3'),
+        Dl_CMatch_create(2,'4','4'),
+        Dl_CMatch_create(2,'5','5'),
+        Dl_CMatch_create(2,'6','6'),
+        Dl_CMatch_create(2,'7','7'),
+        Dl_CMatch_create(2,'8','8'),
+        Dl_CMatch_create(2,'9','9'),
+        Dl_CMatch_create(2,'-','-'),
         NumberSeperatorP,
         DecimalSeperatorP,
         OrderOfMagP,
-        createCharMatchList(2,0x00,0xffff)
+        Dl_CMatch_create(2,0x00,0xffff)
     );
     while(offsetInString<utf32StringInP->itemcnt){
         //no offset because will match all possible chars
