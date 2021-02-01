@@ -459,20 +459,24 @@ struct xmlTreeElement* getNthSubelementOrMisc(struct xmlTreeElement* parentP, ui
     return ((struct xmlTreeElement**)(parentP->content->items))[n];
 }
 
-struct xmlTreeElement* getNthSubelement(struct xmlTreeElement* parentP, uint32_t n){
+struct xmlTreeElement* getNthChildElmntOrChardata(struct xmlTreeElement* parentP, uint32_t n){
+    if(!parentP){
+        dprintf(DBGT_ERROR,"Null passed as parentP");
+        return 0;
+    }
     if(!parentP->content->itemcnt){
         dprintf(DBGT_ERROR,"Element does not contain any subelements, it's empty");
         return 0;
     }
-    if(parentP->content->type!=DlType_xmlElmntP){    //does not work when the content is only cdata
-        dprintf(DBGT_ERROR,"Element does not contain any subelements, only cdata");
+    if(parentP->content->type!=DlType_xmlElmntP){
+        dprintf(DBGT_ERROR,"wrong argument type");
         return 0;
     }
     uint32_t miscOrSubelementIndex=0;
     uint32_t numberOfValidSubelements=0;
     while(miscOrSubelementIndex<parentP->content->itemcnt){
         struct xmlTreeElement* potentialSubelementP=((struct xmlTreeElement**)(parentP->content->items))[miscOrSubelementIndex++];
-        if(potentialSubelementP->type==xmltype_tag){    //Check if the subelement is not cdata or chardata or pi...
+        if(potentialSubelementP->type==xmltype_tag||potentialSubelementP->type==xmltype_chardata){
             if((numberOfValidSubelements++)==n){
                 return potentialSubelementP;
             }

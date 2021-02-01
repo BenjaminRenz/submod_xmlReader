@@ -24,7 +24,7 @@ enum {  ////errorcodes
         error_zerolength_file               =-12
 };
 
-struct DynamicList* xmlDOMtoUTF32(struct xmlTreeElement* startingElement, int formating,int numSpacesIndent);
+struct DynamicList* xmlDOMtoUTF32(struct xmlTreeElement* startingElement);
 int parseXMLDecl(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResultsP);
 void parseDoctype(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResultsP);
 int parseNameAndAttrib(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct xmlTreeElement* ObjectToAttachResultsP,struct DynamicList* MWM_EndTagDlP);
@@ -412,7 +412,7 @@ void parseCdata(struct DynamicList* xmlFileDlP,uint32_t* offsetInXMLfilep,struct
 
 
 int writeXML(FILE* xmlOutFile,struct xmlTreeElement* inputDocumentRootP){
-    struct DynamicList* utf32XmlDlP=xmlDOMtoUTF32(inputDocumentRootP,1,4);
+    struct DynamicList* utf32XmlDlP=xmlDOMtoUTF32(inputDocumentRootP);
     uint8_t* datap=(uint8_t*)malloc(sizeof(uint8_t)*4*utf32XmlDlP->itemcnt);
     uint32_t numUTF8Chars=utf32ToUtf8(utf32XmlDlP->items,utf32XmlDlP->itemcnt,datap);
     #define blocksize 1
@@ -425,7 +425,7 @@ int writeXML(FILE* xmlOutFile,struct xmlTreeElement* inputDocumentRootP){
 }
 
 
-struct DynamicList* xmlDOMtoUTF32(struct xmlTreeElement* startingElement, int formating, int numSpacesIndent){
+struct DynamicList* xmlDOMtoUTF32(struct xmlTreeElement* startingElement){
     struct DynamicList* returnUtf32StringDlP=DlCreate(sizeof(uint32_t),0,DlType_utf32);
     //TODO parse attributes of DocumentRoots, keep in mind newline is before start tag
     struct xmlTreeElement* LastXMLTreeElementP=startingElement->parent;
@@ -558,7 +558,7 @@ struct DynamicList* xmlDOMtoUTF32(struct xmlTreeElement* startingElement, int fo
 
 //TODO does miss the upper layer of elements
 void printXMLsubelements(struct xmlTreeElement* xmlElement){
-    struct DynamicList* utf32XmlDlP=xmlDOMtoUTF32(xmlElement,0,4);
+    struct DynamicList* utf32XmlDlP=xmlDOMtoUTF32(xmlElement);
     uint8_t* utf8Xml=(uint8_t*)malloc(sizeof(uint8_t)*(4*utf32XmlDlP->itemcnt+1)); //for null term
     uint32_t numUTF8Chars=utf32ToUtf8(utf32XmlDlP->items,utf32XmlDlP->itemcnt,utf8Xml);
     #define blocksize 1
