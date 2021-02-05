@@ -70,8 +70,8 @@ void init_matchlists(void){
     CM_LessThanChar=Dl_CMatch_create(2,'<','<');
     MCM_PubidChar=Dl_MCMatchP_create(2,CM_PubidChar_withoutQuotes,CM_QuoteSingle);
     MCM_Quotes=Dl_MCMatchP_create(2,CM_QuoteSingle,CM_QuoteDouble);
-    WM_IllegalChar=Dl_WMatchP_create(1,DlDuplicate(sizeof(uint32_t),CM_IllegalChar));
-    WM_NonSpaceChar=Dl_WMatchP_create(1,DlDuplicate(sizeof(uint32_t),CM_NonSpaceChar));
+    WM_IllegalChar=Dl_WMatchP_create(1,DlDuplicate(CM_IllegalChar));
+    WM_NonSpaceChar=Dl_WMatchP_create(1,DlDuplicate(CM_NonSpaceChar));
     WM_NameStartChar=Dl_WMatchP_create(1,CM_NameStartChar);
     WM_SpaceChar=Dl_WMatchP_create(1,CM_SpaceChar);
     WM_XMLDecl_start=Dl_WMatchP_create(5,                      //xml declaration
@@ -80,7 +80,7 @@ void init_matchlists(void){
         Dl_CMatch_create(2,'x','x'),
         Dl_CMatch_create(2,'m','m'),
         Dl_CMatch_create(2,'l','l'),
-        DlDuplicate(sizeof(uint32_t),CM_SpaceChar) //whitespace must follow the XMLDecl
+        DlDuplicate(CM_SpaceChar) //whitespace must follow the XMLDecl
     );
     WM_XMLDecl_end=Dl_WMatchP_create(2,
         Dl_CMatch_create(2,'?','?'),
@@ -96,16 +96,16 @@ void init_matchlists(void){
         Dl_CMatch_create(2,'Y','Y'),
         Dl_CMatch_create(2,'P','P'),
         Dl_CMatch_create(2,'E','E'),
-        DlDuplicate(sizeof(uint32_t),CM_SpaceChar)  //whitespace must follow
+        DlDuplicate(CM_SpaceChar)  //whitespace must follow
     );
     WM_element_start=Dl_WMatchP_create(2,
-        DlDuplicate(sizeof(uint32_t),CM_LessThanChar),
-        DlDuplicate(sizeof(uint32_t),CM_NameStartChar)
+        DlDuplicate(CM_LessThanChar),
+        DlDuplicate(CM_NameStartChar)
     );
     WM_element_endTag=Dl_WMatchP_create(3,
         Dl_CMatch_create(2,'<','<'),
         Dl_CMatch_create(2,'/','/'),
-        DlDuplicate(sizeof(uint32_t),CM_NameStartChar)
+        DlDuplicate(CM_NameStartChar)
     );
     WM_element_endNonEmpty=Dl_WMatchP_create(1,
         Dl_CMatch_create(2,'>','>')
@@ -155,7 +155,7 @@ void init_matchlists(void){
     WM_pi_start=Dl_WMatchP_create(3,                      //Processing Instruction
         Dl_CMatch_create(2,'<','<'),
         Dl_CMatch_create(2,'?','?'),
-        DlDuplicate(sizeof(uint32_t),CM_NameStartChar)
+        DlDuplicate(CM_NameStartChar)
     );
     WM_pi_end=Dl_WMatchP_create(2,                      //Processing Instruction end
         Dl_CMatch_create(2,'?','?'),
