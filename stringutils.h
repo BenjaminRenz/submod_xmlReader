@@ -1,110 +1,83 @@
 #ifndef STRINGUTILS_H_INCLUDED
-#define STRINGUTILS_H_INCLUDED
+    #define STRINGUTILS_H_INCLUDED
+    #include "dynList/dynList.h"
+    #include <stdarg.h>
+    #include <stddef.h>
+    #include <stdint.h>
+    #include <uchar.h>
+    DlTypedef_plain(utf32Char,char32_t);
+    DlTypedef_compareFunc(utf32Char,char32_t);
 
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdint.h>
-struct xmlTreeElement;
-struct key_val_pair;
+    DlTypedef_nested(DlP_utf32Char,Dl_utf32Char*,utf32Char);
+    typedef struct char32Range{
+        char32_t startChar;
+        char32_t endChar;
+    }char32Range;
+    DlTypedef_plain(CM,char32Range);
+    DlTypedef_nested(MCM,Dl_CM*,CM);
+    DlTypedef_nested(WM,Dl_CM*,CM);
+    DlTypedef_nested(MWM,Dl_WM*,WM);
 
-enum {  DlType_utf32=0x30,          //items of type uint32_t (utf32 characters not null terminated)
-        DlType_KeyValPairP=0x31,    //items of type struct key_val_pait*
-        DlType_xmlElmntP=0x32,      //items of type struct xmlTreeElement*
+    DlTypedef_plain(int64,int64_t);
+    DlTypedef_plain(int32,int32_t);
+    DlTypedef_plain(uint32,uint32_t);
+    DlTypedef_plain(float,float);
+    DlTypedef_plain(double,double);
 
-        DlType_CMatch,
-        DlType_WMatchP,
-        DlType_MWMatchPP,
-        DlType_MCMatchP,
+    #ifndef INC_IN_SOURCE_FILE
 
-        DlType_int64,
-        DlType_int32,
-        DlType_uint32,
-        DlType_float,
-        DlType_double,
+        //VA_NARGS() returns the number of passed arguments
+        #define VA_NARGS(...) VA_INTERNAL_NARGS(__VA_ARGS__)
+        #define VA_INTERNAL_NARGS(...) ((int)(sizeof((int[]){ __VA_ARGS__ })/sizeof(int)))
 
-        /*ListType_Collider,
-        ListType_LayerCollection,
-        ListType_TexturePointer*/
-};
+        #define VA_NPARGS(...) VA_INTERNAL_NPARGS(__VA_ARGS__)
+        #define VA_INTERNAL_NPARGS(...) ((int)(sizeof((void*[]){ __VA_ARGS__ })/sizeof(void*)))
 
-struct DynamicList{
-    uint32_t elementTypeId;
-    uint32_t elementSize;
-    uint32_t itemcnt;
-    void*    items; //Pointing to Sublist or Items
-};
-
-
-//Note on the function syntax, the functions are in camelCase, and a trailing _freeArgXYZ signifies that the function frees the memory for the element passed as argument with number X,Y and Z.
-
-struct DynamicList* DlAlloc             (size_t sizeofListElements,uint32_t typeId,uint32_t NumOfNewElements,void* optionalInitDataP);
-struct DynamicList* DlDuplicate         (struct DynamicList* inDynlistP);
-void                DlAppend            (struct DynamicList** ExistingDynlistToResizePP,uint32_t numOfElementsToAppend,void* AppendDataP);  //like DlResize, but also copys data
-void                DlResize            (struct DynamicList** ExistingDynlistToResizePP,uint32_t NumOfElementsInResizedList);
-struct DynamicList* DlCombine           (struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P);
-struct DynamicList* DlCombine_freeArg1  (struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P);
-struct DynamicList* DlCombine_freeArg2  (struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P);
-struct DynamicList* DlCombine_freeArg12 (struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P);
-void                DlDelete            (struct DynamicList* DynListPtr);
-
-uint32_t            Dl_utf32_compareEqual_freeArg2(struct DynamicList* List1UTF32,struct DynamicList* List2UTF32);
-uint32_t            Dl_utf32_compareEqual(struct DynamicList* List1UTF32,struct DynamicList* List2UTF32);
-char*               Dl_utf32_toString   (struct DynamicList* utf32dynlist);
-struct DynamicList* Dl_utf32_fromString (char* inputString);
-void                Dl_utf32_print      (struct DynamicList* inList);
-struct DynamicList* Dl_utf32_StripSpaces_freeArg1(struct DynamicList* utf32StringInP);
-struct DynamicList* Dl_utf32_Substring(struct DynamicList* utf32StringInP,int32_t startChar,int32_t endChar);  //Supports negative Char Indices, then it will count backwards from the end of the string
-struct DynamicList* Dl_utf32_Substring_freeArg1(struct DynamicList* utf32StringInP,int32_t startChar,int32_t endChar);
-
-struct DynamicList* Dl_utf32_to_Dl_int64            (struct DynamicList* NumberSeperatorP,struct DynamicList* utf32StringInP);
-struct DynamicList* Dl_utf32_to_Dl_int64_freeArg1   (struct DynamicList* NumberSeperatorP,struct DynamicList* utf32StringInP);
-struct DynamicList* Dl_utf32_to_Dl_double           (struct DynamicList* NumberSeperatorP,struct DynamicList* OrderOfMagP, struct DynamicList* DecimalSeperatorP,struct DynamicList* utf32StringInP);
-struct DynamicList* Dl_utf32_to_Dl_double_freeArg123(struct DynamicList* NumberSeperatorP,struct DynamicList* OrderOfMagP, struct DynamicList* DecimalSeperatorP,struct DynamicList* utf32StringInP);
-struct DynamicList* Dl_utf32_to_Dl_float            (struct DynamicList* NumberSeperatorP,struct DynamicList* OrderOfMagP, struct DynamicList* DecimalSeperatorP,struct DynamicList* utf32StringInP);
-struct DynamicList* Dl_utf32_to_Dl_float_freeArg123 (struct DynamicList* NumberSeperatorP,struct DynamicList* OrderOfMagP, struct DynamicList* DecimalSeperatorP,struct DynamicList* utf32StringInP);
-
-struct DynamicList* Dl_CMatch_create (uint32_t argumentCount,...);
-struct DynamicList* Dl_WMatchP_create (uint32_t argumentCount,...);
-struct DynamicList* Dl_MWMatchPP_create(uint32_t argumentCount,...);
-struct DynamicList* Dl_MCMatchP_create(uint32_t argumentCount,...);
-
-uint32_t utf8ToUtf32    (uint8_t* inputString,  uint32_t numberOfUTF8Chars, uint32_t* outputString);
-size_t   utf16ToUtf32   (uint16_t* inputString, size_t numberOfUTF16Chars,  uint32_t* outputString);
-uint32_t utf32ToUtf8    (uint32_t* inputString, uint32_t numberOfUTF32Chars,uint8_t* outputString);
-size_t   utf32CutASCII  (uint32_t* inputString, uint32_t numberOfUTF32Chars,char* outputStringNullTer);
-
-int MatchAndIncrement   (struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP, struct DynamicList* breakIfMatchDlP, struct DynamicList* skipIfMatchDlP);
-int Match               (struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP, struct DynamicList* breakIfMatchDlP, struct DynamicList* skipIfMatchDlP);
-
-//functions to work with xml tree
-struct DynamicList*     getValueFromKeyName         (struct DynamicList* attlist,struct DynamicList* nameD2);
-struct DynamicList*     getValueFromKeyName_freeArg2(struct DynamicList* attlist,struct DynamicList* nameD2);
-
-struct xmlTreeElement*  getNthChildElmntOrChardata(struct xmlTreeElement* parentP, uint32_t n);
-
-struct xmlTreeElement*  getFirstSubelementWith           (struct xmlTreeElement* startElementp,struct DynamicList* NameDynlistP,struct DynamicList* KeyDynlistP, struct DynamicList* ValueDynlistP, uint32_t ElmntType, uint32_t maxDepth);
-struct xmlTreeElement*  getFirstSubelementWith_freeArg234(struct xmlTreeElement* startElementp,struct DynamicList* NameDynlistP,struct DynamicList* KeyDynlistP, struct DynamicList* ValueDynlistP, uint32_t ElmntType, uint32_t maxDepth);
-
-struct DynamicList*     getAllSubelementsWith           (struct xmlTreeElement* startElementp,struct DynamicList* NameDynlistP,struct DynamicList* KeyDynlistP, struct DynamicList* ValueDynlistP, uint32_t ElmntType, uint32_t maxDepth);
-struct DynamicList*     getAllSubelementsWith_freeArg234(struct xmlTreeElement* startElementp,struct DynamicList* NameDynlistP,struct DynamicList* KeyDynlistP, struct DynamicList* ValueDynlistP, uint32_t ElmntType, uint32_t maxDepth);
-
-//This macro is used when getFirstSubelement is to be called with cStringArguments instead of utf32DlP
-#define getFirstSubelementWithASCII(startElementp,nameString,keyString,valueDynlist,ElmntType,maxDepth)\
- getFirstSubelementWith_freeArg234((startElementp), \
-                                   Dl_utf32_fromString(nameString),\
-                                   Dl_utf32_fromString(keyString),\
-                                   (valueDynlist),\
-                                   (ElmntType),(maxDepth))
-
-//This macro is used when getFirstSubelement is to be called with cStringArguments instead of utf32DlP
-#define getAllSubelementsWithASCII(startElementp,nameString,keyString,valueDynlist,ElmntType,maxDepth)\
- getAllSubelementsWith_freeArg234((startElementp), \
-                                   Dl_utf32_fromString(nameString),\
-                                   Dl_utf32_fromString(keyString),\
-                                   (valueDynlist),\
-                                   (ElmntType),(maxDepth))
-
-#define getValueFromKeyNameASCII(attlist,nameString) getValueFromKeyName_freeArg2((attlist),Dl_utf32_fromString(nameString))
+        Dl_utf32Char* Dl_utf32Char_fromString(char* inputString);
+        char*         Dl_utf32Char_toStringAlloc(Dl_utf32Char* utf32Input);
+        char*         Dl_utf32Char_toStringAlloc_freeArg1(Dl_utf32Char* utf32Input);
+        void          Dl_utf32Char_print(Dl_utf32Char* utf32Input);
+        Dl_utf32Char* Dl_utf32Char_stripOuterSpaces(Dl_utf32Char* utf32StringDlP);
+        Dl_utf32Char* Dl_utf32Char_stripOuterSpaces_freeArg1(Dl_utf32Char* utf32StringDlP);
 
 
+        uint32_t utf8ToUtf32(uint8_t* inputString, uint32_t numberOfUTF8Chars, uint32_t* outputString);
+        uint32_t utf32ToUtf8(uint32_t* inputString, uint32_t numberOfUTF32Chars,uint8_t* outputString);
+        size_t utf16ToUtf32(uint16_t* inputString, size_t numberOfUTF16Chars, uint32_t* outputString);
+        size_t utf32CutASCII(uint32_t* inputString, uint32_t numberOfUTF32Chars, char* outputStringNullTer);
+
+        #define Dl_CM_initFromList(...) _internal_Dl_CM_initFromList(VA_NARGS(__VA_ARGS__),__VA_ARGS__)
+        Dl_CM* _internal_Dl_CM_initFromList(uint32_t argumentCount,...);
+        int Dl_CM_MatchSingleCharacter(Dl_utf32Char* StringInUtf32DlP,uint32_t* offsetInStringP,Dl_CM* CmDlP);
+        int Dl_CM_matchAndInc(Dl_utf32Char* StringInUtf32DlP, uint32_t* offsetInStringP, Dl_CM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP);
+        int Dl_CM_match(Dl_utf32Char* StringInUtf32DlP,uint32_t* offsetInStringP, Dl_CM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP);
+
+        #define Dl_MCM_initFromList(...) _internal_Dl_MCM_initFromList(VA_NPARGS(__VA_ARGS__),__VA_ARGS__)
+        Dl_MCM* _internal_Dl_MCM_initFromList(uint32_t argumentCount,...);
+        int Dl_MCM_matchAndInc(Dl_utf32Char* StringInUtf32DlP, uint32_t* offsetInStringP, Dl_MCM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP);
+        int Dl_MCM_match(Dl_utf32Char* StringInUtf32DlP,uint32_t* offsetInStringP, Dl_MCM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP);
+
+        #define Dl_WM_initFromList(...) _internal_Dl_WM_initFromList(VA_NPARGS(__VA_ARGS__),__VA_ARGS__)
+        Dl_WM* _internal_Dl_WM_initFromList(uint32_t argumentCount,...);
+        int Dl_WM_matchAndInc(Dl_utf32Char* StringInUtf32DlP, uint32_t* offsetInStringP, Dl_WM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP);
+        int Dl_WM_match(Dl_utf32Char* StringInUtf32DlP,uint32_t* offsetInStringP, Dl_WM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP);
+
+        #define Dl_MWM_initFromList(...) _internal_Dl_MWM_initFromList(VA_NPARGS(__VA_ARGS__),__VA_ARGS__)
+        Dl_MWM* _internal_Dl_MWM_initFromList(uint32_t argumentCount,...);
+        int Dl_MWM_matchAndInc(Dl_utf32Char* StringInUtf32DlP, uint32_t* offsetInStringP, Dl_MWM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP);
+        int Dl_MWM_match(Dl_utf32Char* StringInUtf32DlP,uint32_t* offsetInStringP, Dl_MWM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP);
+
+
+        #define CreateIntegerTypeTo_Dl_utf32Char_Parser(name,type)                                                                   \
+        Dl_##name* Dl_utf32Char_to_##name(Dl_CM* NumSepP,Dl_utf32Char* InputString);                                                 \
+        Dl_##name* Dl_utf32Char_to_##name##_freeArg1(Dl_CM* NumSepP,Dl_utf32Char* InputString);
+
+        #define CreateFloatingPointTypeTo_Dl_utf32Char_Parser(name,type)                                                             \
+        Dl_##name* Dl_utf32Char_to_##name(Dl_CM* NumSepP,Dl_CM* OrdOfMagP, Dl_CM* DecSepP,Dl_utf32Char* InputString);                \
+        Dl_##name* Dl_utf32Char_to_##name##_freeArg123(Dl_CM* NumSepP,Dl_CM* OrdOfMagP, Dl_CM* DecSepP,Dl_utf32Char* InputString);
+    #endif // STRINGUTILS_C_INCLUDE
+    CreateIntegerTypeTo_Dl_utf32Char_Parser(int32,int32_t);
+    CreateIntegerTypeTo_Dl_utf32Char_Parser(int64,int64_t);
+    CreateFloatingPointTypeTo_Dl_utf32Char_Parser(float,float);
+    CreateFloatingPointTypeTo_Dl_utf32Char_Parser(double,double);
 #endif // STRINGUTILS_H_INCLUDED

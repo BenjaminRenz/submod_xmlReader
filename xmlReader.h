@@ -2,33 +2,38 @@
 #define XMLREADER_H_INCLUDED
 #include <stdio.h>
 #include <xmlReader/stringutils.h>
-struct xmlTreeElement{
-    uint32_t type;                  //can be comment, pi, normal_tag or cdata
-    struct DynamicList* name;       //is name of tag or piTarget
-    struct xmlTreeElement* parent;
-    struct DynamicList* content;    //NULL or content in list form like utf32,or multiple elements
-    struct DynamicList* attributes; //NULL or list of key,value pairs
-};
+#include <dynList/dynList.h>
 
-struct key_val_pair{
-    struct DynamicList* key;        //points to a DynamicList of type dynlisttype_utf32chars
-    struct DynamicList* value;      //points to a DynamicList of type dynlisttype_utf32chars
-};
+typedef struct key_val_pair{
+    Dl_utf32Char* key;        //points to a DynamicList of type dynlisttype_utf32chars
+    Dl_utf32Char* value;      //points to a DynamicList of type dynlisttype_utf32chars
+}key_val_pair;
+
+DlTypedef_plain(attP,key_val_pair*);
+typedef struct xmlTreeElement xmlTreeElement;
+DlTypedef_plain(xmlP,xmlTreeElement*);
+
+typedef struct xmlTreeElement{
+    uint32_t type;                      //can be comment, pi, normal_tag or cdata
+    Dl_utf32Char* name;                 //tagname for xmltype_tag or xmltype_pi
+    Dl_utf32Char* charData;             //character content of chardata elements
+    struct xmlTreeElement* parent;
+    Dl_xmlP* children;                  //if type!=xmltype_tag this list has length 0, else #child xml elements
+    Dl_attP* attributes;                //list of key,value pairs
+}xmlTreeElement;
 
 enum {
-    xmltype_docRoot = 0x41, //return of the parsing function
-    xmltype_comment = 0x42, //comment
-    xmltype_pi      = 0x43, //processing instruction
-    xmltype_tag     = 0x44, //subtag
-    xmltype_cdata   = 0x45, //text not processed by parser
-    xmltype_chardata= 0x46 //text processed by parser inside elements
+    xmltype_docRoot = (1<<0), //return of the parsing function
+    xmltype_comment = (1<<1), //comment
+    xmltype_pi      = (1<<2), //processing instruction
+    xmltype_tag     = (1<<3), //subtag
+    xmltype_cdata   = (1<<4), //text not processed by parser
+    xmltype_chardata= (1<<5)  //text processed by parser inside elements
 };
 
-
-
-int readXML(FILE* xmlFile,struct xmlTreeElement** returnDocumentRoot);
-int writeXML(FILE* xmlOutFile,struct xmlTreeElement* inputDocumentRoot);
-void printXMLsubelements(struct xmlTreeElement* xmlElement);
+int readXML(FILE* xmlFile,xmlTreeElement** returnDocumentRoot);
+int writeXML(FILE* xmlOutFile,xmlTreeElement* inputDocumentRoot);
+void printXMLsubelements(xmlTreeElement* xmlElement);
 
 
 #endif // XMLREADER_H_INCLUDED

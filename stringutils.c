@@ -1,190 +1,91 @@
-#include "stringutils.h"
 #include "xmlReader.h"
 #include <stdlib.h>     //for malloc
 #include <string.h>     //for memcpy
 #include <math.h>       //for pow
-#include <xmlReader/debug.h>
-
-#include <xmlReader/stringutils.h>
+#include <debugPrint/debugPrint.h>
 #include <mathHelper/mathHelper.h>
 
-//TODO check all memcpy, so that the list does not break memcpy(List1->items,EmptyList->items,0);, which breaks when dereferencing EmptyList->items
-
-struct DynamicList* DlAlloc(size_t sizeofListElements,uint32_t typeId,uint32_t NumOfNewElements,void* optionalInitDataP){
-    struct DynamicList* newDynListP=(struct DynamicList*) malloc(sizeof(struct DynamicList)+sizeofListElements*NumOfNewElements);
-    newDynListP->elementSize=sizeofListElements;
-    newDynListP->elementTypeId=typeId;
-    newDynListP->itemcnt=NumOfNewElements;
-    newDynListP->items=0;
-    if(NumOfNewElements){
-        newDynListP->items=(&(newDynListP[1]));
-        if(optionalInitDataP){
-            memcpy(newDynListP->items,optionalInitDataP,newDynListP->elementSize*newDynListP->itemcnt);
-        }
-    }
-    return newDynListP;
-}
-
-void DlResize(struct DynamicList** DynlistToResizePP,uint32_t NumOfElementsInResizedList){
-    if(!DynlistToResizePP){
-        dprintf(DBGT_ERROR,"Dynlist to resize was a nullptr");
-        exit(1);
-    }
-    struct DynamicList* DynlistToResizeP=*DynlistToResizePP;
-    if(!DynlistToResizeP->elementSize){
-        dprintf(DBGT_ERROR,"Size of list elements undefined");
-    }
-    DynlistToResizeP=realloc(DynlistToResizeP,sizeof(struct DynamicList)+(DynlistToResizeP->elementSize)*NumOfElementsInResizedList);
-    DynlistToResizeP->itemcnt=NumOfElementsInResizedList;
-    DynlistToResizeP->items=&(DynlistToResizeP[1]);
-    (*DynlistToResizePP)=DynlistToResizeP;
-};
-
-
-struct DynamicList* Dl_CMatch_create(uint32_t argumentCount,...){ //only pass uint32_t to this function!!, Matches from even character to next odd character
+Dl_CM* _internal_Dl_CM_initFromList(uint32_t argumentCount,...){
     va_list argp;
     va_start(argp, argumentCount);
-    struct DynamicList* DynListPtr=DlAlloc(sizeof(uint32_t),DlType_CMatch,argumentCount,NULL);
-    for(uint32_t item=0;item<argumentCount;item++){
-       ((uint32_t*)DynListPtr->items)[item]=va_arg(argp, uint32_t);
+    Dl_CM* CmDlP=Dl_CM_alloc(argumentCount/2,NULL);
+    for(size_t tuple=0;tuple<argumentCount/2;tuple++){
+        CmDlP->items[tuple].startChar=va_arg(argp, char32_t);
+        CmDlP->items[tuple].endChar=va_arg(argp, char32_t);
     }
     va_end(argp);
-    return DynListPtr;
+    return CmDlP;
 }
 
-struct DynamicList* Dl_WMatchP_create(uint32_t argumentCount,...){ //in case you want to match a word with characters defined by the CharMatchLists like (abc acb bca bac cab cba)
+Dl_MCM* _internal_Dl_MCM_initFromList(uint32_t argumentCount,...){
     va_list argp;
     va_start(argp, argumentCount);
-    struct DynamicList* DynListPtr=DlAlloc(sizeof(struct DynamicList*),DlType_WMatchP,argumentCount,NULL);
-    for(uint32_t item=0;item<argumentCount;item++){
-       ((struct DynamicList**)DynListPtr->items)[item]=va_arg(argp, struct DynamicList*);
+    Dl_MCM* McmDlP=Dl_MCM_alloc(argumentCount,NULL);
+    for(size_t McmIdx=0;McmIdx<argumentCount;McmIdx++){
+        McmDlP->items[McmIdx]=va_arg(argp,Dl_CM*);
     }
     va_end(argp);
-    return DynListPtr;
+    return McmDlP;
 }
 
-struct DynamicList* Dl_MWMatchPP_create(uint32_t argumentCount,...){ //in case you want to match xml and XML but not xMl or XmL
+Dl_WM* _internal_Dl_WM_initFromList(uint32_t argumentCount,...){
     va_list argp;
     va_start(argp, argumentCount);
-    struct DynamicList* DynListPtr=DlAlloc(sizeof(struct DynamicList*),DlType_MWMatchPP,argumentCount,NULL);
-    for(uint32_t item=0;item<argumentCount;item++){
-       ((struct DynamicList**)DynListPtr->items)[item]=va_arg(argp, struct DynamicList*);
+    Dl_WM* WmDlP=Dl_WM_alloc(argumentCount,NULL);
+    for(size_t WmIdx=0;WmIdx<argumentCount;WmIdx++){
+        WmDlP->items[WmIdx]=va_arg(argp,Dl_CM*);
     }
     va_end(argp);
-    return DynListPtr;
+    return WmDlP;
 }
 
-struct DynamicList* Dl_MCMatchP_create(uint32_t argumentCount,...){
+Dl_MWM* _internal_Dl_MWM_initFromList(uint32_t argumentCount,...){
     va_list argp;
     va_start(argp, argumentCount);
-    struct DynamicList* DynListPtr=DlAlloc(sizeof(struct DynamicList*),DlType_MCMatchP,argumentCount,NULL);
-    for(uint32_t item=0;item<argumentCount;item++){
-       ((struct DynamicList**)DynListPtr->items)[item]=va_arg(argp, struct DynamicList*);
+    Dl_MWM* MwmDlP=Dl_MWM_alloc(argumentCount,NULL);
+    for(size_t WmIdx=0;WmIdx<argumentCount;WmIdx++){
+        MwmDlP->items[WmIdx]=va_arg(argp,Dl_WM*);
     }
     va_end(argp);
-    return DynListPtr;
+    return MwmDlP;
 }
 
-struct DynamicList* Dl_utf32_fromString(char* inputString){
+Dl_utf32Char* Dl_utf32Char_fromString(char* inputString){
     if(!inputString){
         return NULL;
     }
     uint32_t stringlength=0;
-    while(inputString[stringlength++]){}
-    struct DynamicList* outputString=DlAlloc(sizeof(uint32_t),DlType_utf32,--stringlength,NULL);
+    while(inputString[stringlength++]){}                                        //calculate length of string until null termination character
+    Dl_utf32Char* outputString=Dl_utf32Char_alloc(--stringlength,NULL);   //allocate sufficient memory minus termination char
     for(uint32_t index=0;index<stringlength;index++){
-        ((uint32_t*)outputString->items)[index]=inputString[index];
+        outputString->items[index]=inputString[index];
     }
     return outputString;
 }
 
-char* utf32dynlist_to_string_freeArg1(struct DynamicList* utf32dynlist){
-    char* returnString=Dl_utf32_toString(utf32dynlist);
-    DlDelete(utf32dynlist);
-    return returnString;
-}
-
-char* Dl_utf32_toString(struct DynamicList* utf32dynlist){
-    if(!utf32dynlist){
+char* Dl_utf32Char_toStringAlloc(Dl_utf32Char* utf32Input){
+    if(!utf32Input){
         dprintf(DBGT_ERROR,"list ptr empty");
         return 0;
     }
-    if(utf32dynlist->elementTypeId!=DlType_utf32){
-        dprintf(DBGT_ERROR,"incorrect list type");
-        return 0;
-    }
-    char* outstring=(char*)malloc(sizeof(char*)*(utf32dynlist->itemcnt+1));
-    utf32CutASCII(utf32dynlist->items,utf32dynlist->itemcnt,outstring);
+    char* outstring=(char*)malloc(sizeof(char*)*(utf32Input->itemcnt+1));
+    utf32CutASCII(utf32Input->items,utf32Input->itemcnt,outstring);
     return outstring;
 }
-/*
-void DlDeleteNonRecursive(struct DynamicList* DynListPtr){
-    if(!DynListPtr){
-        dprintf(DBGT_ERROR,"tried to free non existing DynList or subDynList");
-        return;
-    }
-    free(DynListPtr);
-}
-*/
 
-
-
-
-void DlDelete(struct DynamicList* DynListPtr){
-    if(!DynListPtr){
-        dprintf(DBGT_ERROR,"tried to free non existing DynList or subDynList");
-        return;
-    }
-    switch(DynListPtr->elementTypeId){
-        case DlType_WMatchP:
-        case DlType_MWMatchPP:
-        case DlType_MCMatchP:
-            for(uint32_t SubList=0; SubList<(DynListPtr->itemcnt); SubList++){
-                DlDelete(((struct DynamicList**)DynListPtr->items)[SubList]);
-            }
-        __attribute__ ((fallthrough));
-        default:
-            free(DynListPtr);
-            break;
-    }
+char* Dl_utf32Char_toStringAlloc_freeArg1(Dl_utf32Char* utf32Input){
+    char* returnString=Dl_utf32Char_toStringAlloc(utf32Input);
+    Dl_utf32Char_delete(utf32Input);
+    return returnString;
 }
 
-uint32_t Dl_utf32_compareEqual_freeArg2(struct DynamicList* List1UTF32,struct DynamicList* List2UTF32){
-    uint32_t matchRes=Dl_utf32_compareEqual(List1UTF32,List2UTF32);
-    if(List2UTF32){
-        DlDelete(List2UTF32);
-    }
-    return matchRes;
-}
-
-uint32_t Dl_utf32_compareEqual(struct DynamicList* List1UTF32,struct DynamicList* List2UTF32){
-    if(!List1UTF32||!List2UTF32){
-        dprintf(DBGT_ERROR,"Unexpected Nullptr");
-        return 0;
-    }
-    if(List1UTF32->itemcnt!=List2UTF32->itemcnt){
-        return 0;
-    }
-    int matchFlag=1;
-    for(uint32_t index=0;index<List1UTF32->itemcnt;index++){
-        if(((uint32_t*)List1UTF32->items)[index]!=((uint32_t*)List2UTF32->items)[index]){   //Missmatch
-            matchFlag=0;
-        }
-    }
-    return matchFlag;
-}
-
-void Dl_utf32_print(struct DynamicList* inList){
-    if(!inList){
+void Dl_utf32Char_print(Dl_utf32Char* utf32Input){
+    if(!utf32Input){
         printf("Error: NullPtr was passed to print UTF32Dynlist\n");
     }
-    if(inList->elementTypeId!=DlType_utf32){
-        printf("Error: Can't Print List, is of wrong type!\n");
-    }else{
-        char* AsciiStringp=(char*)malloc(sizeof(char)*((inList->itemcnt)+1));
-        utf32CutASCII(inList->items,inList->itemcnt,AsciiStringp);
-        printf("%.*s\n",inList->itemcnt,AsciiStringp);
-    }
+    char* asciiString=Dl_utf32Char_toStringAlloc(utf32Input);
+    printf("%s\n",asciiString);
+    free(asciiString);
 }
 
 uint32_t utf8ToUtf32(uint8_t* inputString, uint32_t numberOfUTF8Chars, uint32_t* outputString){
@@ -217,8 +118,6 @@ uint32_t utf8ToUtf32(uint8_t* inputString, uint32_t numberOfUTF8Chars, uint32_t*
     printf("Info: Converted %d utf8 to %d utf32 chars\n",(unsigned int)input_array_index,(unsigned int)output_array_index);
     return output_array_index;
 }
-
-
 
 uint32_t utf32ToUtf8(uint32_t* inputString, uint32_t numberOfUTF32Chars,uint8_t* outputString){
     uint32_t output_array_index=0;
@@ -261,8 +160,6 @@ size_t utf16ToUtf32(uint16_t* inputString, size_t numberOfUTF16Chars, uint32_t* 
     return output_array_index;
 }
 
-
-
 size_t utf32CutASCII(uint32_t* inputString, uint32_t numberOfUTF32Chars, char* outputStringNullTer){
     uint32_t output_array_index=0;
     for(size_t input_array_index=0;input_array_index<numberOfUTF32Chars;input_array_index++){
@@ -276,1028 +173,427 @@ size_t utf32CutASCII(uint32_t* inputString, uint32_t numberOfUTF32Chars, char* o
     return output_array_index;
 }
 
-
-//returns mach index or -1 if skipped or not found
-int MatchAndIncrement(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP, struct DynamicList* breakIfMatchDlP, struct DynamicList* skipIfMatchDlP){
-    int matchIdx=Match(StringInUtf32DlP,InOutIndexP,breakIfMatchDlP,skipIfMatchDlP);
-    if(matchIdx<0){
-        return matchIdx;
-    }
-    if(breakIfMatchDlP->elementTypeId==DlType_CMatch||breakIfMatchDlP->elementTypeId==DlType_MCMatchP){ //shift by one character
-        (*InOutIndexP)++;
-        return matchIdx;
-    }
-    if(breakIfMatchDlP->elementTypeId==DlType_WMatchP){     //shift by number or characters
-        (*InOutIndexP)+=breakIfMatchDlP->itemcnt;
-        return matchIdx;
-    }
-    if(breakIfMatchDlP->elementTypeId==DlType_MWMatchPP){    //check which word matched and shift by number or characters
-        struct DynamicList* MatchingWMDlP=((struct DynamicList**)breakIfMatchDlP->items)[matchIdx];
-        (*InOutIndexP)+=MatchingWMDlP->itemcnt;
-        return matchIdx;
-    }
-    dprintf(DBGT_ERROR,"Invalid list type");
-    exit(1);
-}
-
-int MatchCharRange(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP,struct DynamicList* CMDlP){
-    for(uint32_t CMidx=0;CMidx<CMDlP->itemcnt;CMidx+=2){
-        if((((uint32_t*)CMDlP->items)[CMidx]  <=((uint32_t*)StringInUtf32DlP->items)[*InOutIndexP]) &&
-           (((uint32_t*)CMDlP->items)[CMidx+1]>=((uint32_t*)StringInUtf32DlP->items)[*InOutIndexP])){
-            return CMidx;
+int Dl_CM_MatchSingleCharacter(Dl_utf32Char* StringInUtf32DlP,uint32_t* offsetInStringP,Dl_CM* CmDlP){
+    for(size_t CmIdx=0;CmIdx<CmDlP->itemcnt;CmIdx++){
+        if(CmDlP->items[CmIdx].startChar<=StringInUtf32DlP->items[*offsetInStringP] &&
+           CmDlP->items[CmIdx].endChar  >=StringInUtf32DlP->items[*offsetInStringP]){
+            return CmIdx;
         }
     }
     return -1;
 }
 
-//returns index inside the breakIfMatch List or -1 when no match occurs
-//TODO remember value of InOutIndexP if there is no match write it back
-int Match(struct DynamicList* StringInUtf32DlP,uint32_t* InOutIndexP, struct DynamicList* breakIfMatchDlP, struct DynamicList* skipIfMatchDlP){
-    if(StringInUtf32DlP->elementTypeId!=DlType_utf32){
-        dprintf(DBGT_ERROR,"Not a valid utf32 file");
+int Dl_CM_matchAndInc(Dl_utf32Char* StringInUtf32DlP, uint32_t* offsetInStringP, Dl_CM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP){
+    int returnVal;
+    if((returnVal=Dl_CM_match(StringInUtf32DlP, offsetInStringP, breakIfMatchDlP, skipIfMatchDlP))<0){
+        return returnVal;
     }
-    int MatchIdxSkip=0;
-    while(MatchIdxSkip>=0){
+    (*offsetInStringP)++;
+    return returnVal;
+}
+
+int Dl_CM_match(Dl_utf32Char* StringInUtf32DlP,uint32_t* offsetInStringP, Dl_CM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP){
+    while((*offsetInStringP)<StringInUtf32DlP->itemcnt){
         if(breakIfMatchDlP){
-            //check if breakIfMatch has any match
-            switch(breakIfMatchDlP->elementTypeId){
-                int ret;
-                case DlType_CMatch:
-                    if(((*InOutIndexP)<StringInUtf32DlP->itemcnt) && (ret=MatchCharRange(StringInUtf32DlP,InOutIndexP,breakIfMatchDlP)>-1)){
-                        return ret;
-                    }
-                break;
-                case DlType_MCMatchP:
-                    for(uint32_t MCMidx=0;MCMidx<(breakIfMatchDlP->itemcnt);MCMidx++){        //iterate over sub char match lists
-                        struct DynamicList* CMDlP=(((struct DynamicList**)breakIfMatchDlP->items)[MCMidx]);  //get char match list
-                        if((*InOutIndexP)<StringInUtf32DlP->itemcnt && (MatchCharRange(StringInUtf32DlP,InOutIndexP,CMDlP)>-1)){
-                            return MCMidx;
-                        }
-                    }
-                break;
-                case DlType_WMatchP:;{
-                        uint32_t offsetCopy=(*InOutIndexP);
-                        if((*InOutIndexP)+breakIfMatchDlP->itemcnt<=StringInUtf32DlP->itemcnt){ //check that the string was not overshot
-                            for(uint32_t WMidx=0; WMidx<breakIfMatchDlP->itemcnt; WMidx++,offsetCopy++){
-                                struct DynamicList* CMDlP=(((struct DynamicList**)breakIfMatchDlP->items)[WMidx]);
-                                if(1+MatchCharRange(StringInUtf32DlP,&offsetCopy,CMDlP)){
-                                    if(WMidx==breakIfMatchDlP->itemcnt-1){return 0;} //if we reached the end of the word
-                                }else{
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                break;
-                case DlType_MWMatchPP:
-                    for(uint32_t MWMidx=0;MWMidx<(breakIfMatchDlP->itemcnt);MWMidx++){        //iterate over sub word match lists
-                        struct DynamicList* WMDlP=(((struct DynamicList**)breakIfMatchDlP->items)[MWMidx]);  //get char match list
-                        uint32_t offsetCopy=(*InOutIndexP);
-                        if((*InOutIndexP)+WMDlP->itemcnt<StringInUtf32DlP->itemcnt){ //check that the string was not overshot
-                            for(uint32_t WMidx=0;WMidx<WMDlP->itemcnt;WMidx++,offsetCopy++){
-                                struct DynamicList* CMDlP=(((struct DynamicList**)WMDlP->items)[WMidx]);
-                                if(1+MatchCharRange(StringInUtf32DlP,&offsetCopy,CMDlP)){
-                                    if(WMidx==WMDlP->itemcnt-1){return MWMidx;} //if we reached the end of the word
-                                }else{
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                break;
-                default:
-                    dprintf(DBGT_ERROR,"Wrong dynlist type");
-                    return -1;
-                break;
+            int ret;
+            if((ret=Dl_CM_MatchSingleCharacter(StringInUtf32DlP,offsetInStringP,breakIfMatchDlP))>-1){
+                return ret;
             }
         }
-
-        //check if we are allowed to move the global offset
-        if(skipIfMatchDlP){
-            MatchIdxSkip=-1;
-            switch(skipIfMatchDlP->elementTypeId){
-                case DlType_CMatch:
-                    if((*InOutIndexP)<StringInUtf32DlP->itemcnt){
-                        MatchIdxSkip=MatchCharRange(StringInUtf32DlP,InOutIndexP,skipIfMatchDlP);
-                    }
-                break;
-                case DlType_MCMatchP:
-                    for(uint32_t MCMidx=0;MCMidx<(skipIfMatchDlP->itemcnt);MCMidx++){        //iterate over sub char match lists
-                        struct DynamicList* CMDlP=(((struct DynamicList**)skipIfMatchDlP->items)[MCMidx]);  //get char match list
-                        if((*InOutIndexP)<StringInUtf32DlP->itemcnt){
-                            if((MatchIdxSkip=MatchCharRange(StringInUtf32DlP,InOutIndexP,CMDlP))>=0){
-                                break;
-                            }
-                        }
-                    }
-                break;
-                case DlType_WMatchP:;
-                    {
-                        uint32_t offsetCopy=(*InOutIndexP);
-                        if((*InOutIndexP)+skipIfMatchDlP->itemcnt<StringInUtf32DlP->itemcnt){ //check that the string was not overshot
-                            for(uint32_t WMidx=0;WMidx<skipIfMatchDlP->itemcnt; WMidx++,offsetCopy++){
-                                struct DynamicList* CMDlP=(((struct DynamicList**)skipIfMatchDlP->items)[WMidx]);
-                                if(1+MatchCharRange(StringInUtf32DlP,&offsetCopy,CMDlP)){
-                                    if(WMidx==skipIfMatchDlP->itemcnt-1){
-                                            MatchIdxSkip=0;
-                                        break;
-                                    } //if we reached the end of the word
-                                }else{
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                break;
-                case DlType_MWMatchPP:
-                    for(uint32_t MWMidx=0;MWMidx<(skipIfMatchDlP->itemcnt);MWMidx++){        //iterate over sub word match lists
-                        struct DynamicList* WMDlP=(((struct DynamicList**)skipIfMatchDlP->items)[MWMidx]);  //get char match list
-                        uint32_t offsetCopy=(*InOutIndexP);
-                        if((*InOutIndexP)+WMDlP->itemcnt<StringInUtf32DlP->itemcnt){ //check that the string was not overshot
-                            for(uint32_t WMidx=0; WMidx<WMDlP->itemcnt; WMidx++,offsetCopy++){
-                                struct DynamicList* CMDlP=(((struct DynamicList**)WMDlP->items)[WMidx]);
-                                if(1+MatchCharRange(StringInUtf32DlP,&offsetCopy,CMDlP)){
-                                    if(WMidx==WMDlP->itemcnt-1){
-                                        MatchIdxSkip=MWMidx;
-                                        MWMidx=skipIfMatchDlP->itemcnt;
-                                        break;
-                                    } //if we reached the end of the word
-                                }else{
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                break;
-                default:
-                    dprintf(DBGT_ERROR,"Invalid list type");
-                break;
+        if(skipIfMatchDlP){  //last character was not inside breakIfMatchDlP, check if we are allowed to skip over characters
+            if(Dl_CM_MatchSingleCharacter(StringInUtf32DlP,offsetInStringP,skipIfMatchDlP)){ //check if the character matches out skip characters
+                (*offsetInStringP)++; //shift offset to prepare to read next character
             }
-        }else{//no allowed characters specified for skip, so no match
-            return -1;
-        }
-        if(MatchIdxSkip>=0){
-            if(skipIfMatchDlP->elementTypeId==DlType_CMatch||skipIfMatchDlP->elementTypeId==DlType_MCMatchP){ //shift by one character
-                (*InOutIndexP)++;
-            }else if(skipIfMatchDlP->elementTypeId==DlType_MWMatchPP){    //check which word matched and shift by number or characters
-                struct DynamicList* MatchingWMDlP=((struct DynamicList**)skipIfMatchDlP->items)[MatchIdxSkip];
-                (*InOutIndexP)+=MatchingWMDlP->itemcnt;
-            }else if(skipIfMatchDlP->elementTypeId==DlType_WMatchP){     //shift by number or characters
-                (*InOutIndexP)+=skipIfMatchDlP->itemcnt;
-            }else{
-                dprintf(DBGT_ERROR,"Invalid list type");
-            }
+        }else{
+            break;      //no skipping allowed -> missmatch
         }
     }
-    return -1;
+    return -1; //String ended or missmatch
 }
 
-struct DynamicList* Dl_utf32_StripSpaces_freeArg1(struct DynamicList* utf32StringInP){
-    struct DynamicList* temp_CM_NonSpaceChar=Dl_CMatch_create(6,0x21,0xd7ff, 0xe000,0xfffd, 0x10000,0x10ffff);   //anything else except space
-    struct DynamicList* temp_CM_SpaceChar=Dl_CMatch_create(8,0x9,0x9, 0xd,0xd, 0xa,0xa, 0x20,0x20);
+
+int Dl_MCM_matchAndInc(Dl_utf32Char* StringInUtf32DlP, uint32_t* offsetInStringP, Dl_MCM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP){
+    int returnVal;
+    if((returnVal=Dl_MCM_match(StringInUtf32DlP, offsetInStringP, breakIfMatchDlP, skipIfMatchDlP))<0){
+        return returnVal;
+    }
+    (*offsetInStringP)++;
+    return returnVal;
+}
+
+int Dl_MCM_match(Dl_utf32Char* StringInUtf32DlP,uint32_t* offsetInStringP, Dl_MCM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP){
+    while((*offsetInStringP)<StringInUtf32DlP->itemcnt){
+        if(breakIfMatchDlP){
+            for(size_t McmIdx=0;McmIdx<breakIfMatchDlP->itemcnt;McmIdx++){        //iterate over sub char match lists
+                if((Dl_CM_MatchSingleCharacter(StringInUtf32DlP,offsetInStringP,breakIfMatchDlP->items[McmIdx])>-1)){
+                    return McmIdx;
+                }
+            }
+        }
+        if(skipIfMatchDlP){  //last character was not inside breakIfMatchDlP, check if we are allowed to skip over characters
+            if(Dl_CM_MatchSingleCharacter(StringInUtf32DlP,offsetInStringP,skipIfMatchDlP)){ //check if the character matches out skip characters
+                (*offsetInStringP)++; //shift offset to prepare to read next character
+            }
+        }else{
+            break;      //no skipping allowed -> missmatch
+        }
+    }
+    return -1; //String ended or missmatch
+}
+
+
+int Dl_WM_matchAndInc(Dl_utf32Char* StringInUtf32DlP, uint32_t* offsetInStringP, Dl_WM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP){
+    int returnVal;
+    if((returnVal=Dl_WM_match(StringInUtf32DlP, offsetInStringP, breakIfMatchDlP, skipIfMatchDlP))<0){
+        return returnVal;
+    }
+    (*offsetInStringP)+=breakIfMatchDlP->items[returnVal]->itemcnt;
+    return returnVal;
+}
+
+int Dl_WM_match(Dl_utf32Char* StringInUtf32DlP,uint32_t* offsetInStringP, Dl_WM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP){
+    while((*offsetInStringP)<StringInUtf32DlP->itemcnt){
+        if(breakIfMatchDlP){
+            for(size_t WmIdx=0;WmIdx<breakIfMatchDlP->itemcnt;WmIdx++){ //iterate over sub char match lists in each word
+                uint32_t offsetCopy=(*offsetInStringP)+WmIdx;
+                if(offsetCopy>=StringInUtf32DlP->itemcnt){
+                    break;
+                }
+                if((Dl_CM_MatchSingleCharacter(StringInUtf32DlP,offsetInStringP,breakIfMatchDlP->items[WmIdx]))>-1){
+                    if(WmIdx == (breakIfMatchDlP->itemcnt-1)){ //check if this is the last letter in word
+                        return 0;
+                    }
+                }else{
+                    break;
+                }
+            }
+        }
+        if(skipIfMatchDlP){  //last character was not inside breakIfMatchDlP, check if we are allowed to skip over characters
+            if(Dl_CM_MatchSingleCharacter(StringInUtf32DlP,offsetInStringP,skipIfMatchDlP)){ //check if the character matches out skip characters
+                (*offsetInStringP)++; //shift offset to prepare to read next character
+            }
+        }else{
+            break;      //no skipping allowed -> missmatch
+        }
+    }
+    return -1; //String ended or missmatch
+}
+
+int Dl_MWM_matchAndInc(Dl_utf32Char* StringInUtf32DlP, uint32_t* offsetInStringP, Dl_MWM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP){
+    int returnVal;
+    if((returnVal=Dl_MWM_match(StringInUtf32DlP, offsetInStringP, breakIfMatchDlP, skipIfMatchDlP))<0){
+        return returnVal;
+    }
+    (*offsetInStringP)+=breakIfMatchDlP->items[returnVal]->itemcnt;
+    return returnVal;
+}
+
+int Dl_MWM_match(Dl_utf32Char* StringInUtf32DlP,uint32_t* offsetInStringP, Dl_MWM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP){
+    while((*offsetInStringP)<StringInUtf32DlP->itemcnt){
+        if(breakIfMatchDlP){
+            for(size_t MwmIdx=0;MwmIdx<breakIfMatchDlP->itemcnt;MwmIdx++){
+                Dl_WM* breakIfWmDlP=breakIfMatchDlP->items[MwmIdx];
+                for(size_t WmIdx=0;WmIdx<breakIfWmDlP->itemcnt;WmIdx++){ //iterate over sub char match lists in each word
+                    uint32_t offsetCopy=(*offsetInStringP)+WmIdx;
+                    if(offsetCopy>=StringInUtf32DlP->itemcnt){
+                        break;
+                    }
+                    if((Dl_CM_MatchSingleCharacter(StringInUtf32DlP,offsetInStringP,breakIfWmDlP->items[WmIdx]))>-1){
+                        if(WmIdx == (breakIfWmDlP->itemcnt-1)){ //check if this is the last letter in word
+                            return MwmIdx;
+                        }
+                    }else{
+                        break;
+                    }
+                }
+            }
+        }
+        if(skipIfMatchDlP){  //last character was not inside breakIfMatchDlP, check if we are allowed to skip over characters
+            if(Dl_CM_MatchSingleCharacter(StringInUtf32DlP,offsetInStringP,skipIfMatchDlP)){ //check if the character matches out skip characters
+                (*offsetInStringP)++; //shift offset to prepare to read next character
+            }
+        }else{
+            break;      //no skipping allowed -> missmatch
+        }
+    }
+    return -1; //String ended or missmatch
+}
+
+Dl_utf32Char* Dl_utf32Char_stripOuterSpaces(Dl_utf32Char* utf32StringDlP){
+    Dl_CM* temp_CM_NonSpaceChar=Dl_CM_initFromList(0x21,0xd7ff, 0xe000,0xfffd, 0x10000,0x10ffff);
+    Dl_CM* temp_CM_SpaceChar=Dl_CM_initFromList(0x9,0x9, 0xd,0xd, 0xa,0xa, 0x20,0x20);
     uint32_t firstNonSpaceChar=0;
-    Match(utf32StringInP,&firstNonSpaceChar,temp_CM_NonSpaceChar,temp_CM_SpaceChar);
+    Dl_CM_match(utf32StringDlP,&firstNonSpaceChar,temp_CM_NonSpaceChar,temp_CM_SpaceChar);
     uint32_t lastNonSpaceChar;
-    for(lastNonSpaceChar=utf32StringInP->itemcnt-1;firstNonSpaceChar<=lastNonSpaceChar;lastNonSpaceChar--){
-        if((-1)==MatchCharRange(utf32StringInP,&lastNonSpaceChar,temp_CM_SpaceChar)){
-            lastNonSpaceChar++;
+    for(lastNonSpaceChar=utf32StringDlP->itemcnt-1;firstNonSpaceChar<=lastNonSpaceChar;lastNonSpaceChar--){
+        if((-1)==Dl_CM_MatchSingleCharacter(utf32StringDlP,&lastNonSpaceChar,temp_CM_SpaceChar)){
+            lastNonSpaceChar+=1;
             break;  //if something different from a space character is found this is our new last character
         }
     }
-    DlDelete(temp_CM_NonSpaceChar);
-    DlDelete(temp_CM_SpaceChar);
-    void* srcP=&(((uint32_t*)(utf32StringInP->items))[firstNonSpaceChar]);
-    struct DynamicList* outputDynlist=DlAlloc(sizeof(uint32_t),DlType_utf32,lastNonSpaceChar-firstNonSpaceChar,srcP);
-    DlDelete(utf32StringInP);
-    return outputDynlist;
+    Dl_CM_delete(temp_CM_NonSpaceChar);
+    Dl_CM_delete(temp_CM_SpaceChar);
+    char32_t* srcP=&(utf32StringDlP->items[firstNonSpaceChar]);
+    Dl_utf32Char* outputString=Dl_utf32Char_alloc(lastNonSpaceChar-firstNonSpaceChar,srcP);
+    return outputString;
 }
 
-struct xmlTreeElement* getNthSubelementOrMisc(struct xmlTreeElement* parentP, uint32_t n){
-    if(parentP->content==0){
-        return 0;
-    }
-    if(parentP->content->elementTypeId!=DlType_xmlElmntP){
-        return 0;
-    }
-    if(parentP->content->itemcnt<=n){
-        return 0;   //not enough subelements
-    }
-    return ((struct xmlTreeElement**)(parentP->content->items))[n];
-}
-
-struct xmlTreeElement* getNthChildElmntOrChardata(struct xmlTreeElement* parentP, uint32_t n){
-    if(!parentP){
-        dprintf(DBGT_ERROR,"Null passed as parentP");
-        return 0;
-    }
-    if(!parentP->content->itemcnt){
-        dprintf(DBGT_ERROR,"Element does not contain any subelements, it's empty");
-        return 0;
-    }
-    if(parentP->content->elementTypeId!=DlType_xmlElmntP){
-        dprintf(DBGT_ERROR,"wrong argument type");
-        return 0;
-    }
-    uint32_t miscOrSubelementIndex=0;
-    uint32_t numberOfValidSubelements=0;
-    while(miscOrSubelementIndex<parentP->content->itemcnt){
-        struct xmlTreeElement* potentialSubelementP=((struct xmlTreeElement**)(parentP->content->items))[miscOrSubelementIndex++];
-        if(potentialSubelementP->type==xmltype_tag||potentialSubelementP->type==xmltype_chardata){
-            if((numberOfValidSubelements++)==n){
-                return potentialSubelementP;
-            }
-        }
-    }
-    return NULL;   //not enough subelements
+Dl_utf32Char* Dl_utf32Char_stripOuterSpaces_freeArg1(Dl_utf32Char* utf32StringDlP){
+    Dl_utf32Char* outputString=Dl_utf32Char_stripOuterSpaces(utf32StringDlP);
+    Dl_utf32Char_delete(utf32StringDlP);
+    return outputString;
 }
 
 
-//TODO maxDepth is completely ignored
-struct DynamicList* getAllSubelementWith(struct xmlTreeElement* startingElementP,struct DynamicList* NameDynlistP,struct DynamicList* KeyDynlistP, struct DynamicList* ValueDynlistP, uint32_t ElmntType, uint32_t maxDepth){
-    if(!startingElementP){
-        dprintf(DBGT_ERROR,"getFirstSubelement called with empty startingElemenP pointer");
-        return NULL;
-    }
-    struct DynamicList* returnDlP=DlAlloc(sizeof(struct xmlTreeElement*),DlType_xmlElmntP,0,NULL);
-
-    struct xmlTreeElement* LastXMLTreeElementP=startingElementP->parent;
-    struct xmlTreeElement* CurrentXMLTreeElementP=startingElementP;
-    uint32_t currentDepth=0;        //for indentation
-    #define subindex_needs_reinitialization (-1)
-    int32_t subindex=0;             //which child node is currently processed
-    do{
-        if(CurrentXMLTreeElementP->parent==LastXMLTreeElementP){      //walk direction is downward
-            uint32_t objectMatches=1;
-            switch(CurrentXMLTreeElementP->type){
-                case xmltype_tag:
-                case xmltype_docRoot:
-                    if(CurrentXMLTreeElementP->content->itemcnt){
-                        //Jump to the next subelement
-                        currentDepth++;
-                        subindex=subindex_needs_reinitialization;
-                    }
-                    __attribute__ ((fallthrough));
-                case xmltype_cdata:
-                case xmltype_chardata:
-                case xmltype_comment:
-                case xmltype_pi:
-                    if(NameDynlistP){
-                        if(!Dl_utf32_compareEqual(CurrentXMLTreeElementP->name,NameDynlistP)){
-                            objectMatches=0;
-                        }
-                    }
-                    if(KeyDynlistP){
-                        struct DynamicList* ValueDlP=getValueFromKeyName(CurrentXMLTreeElementP->attributes,KeyDynlistP);
-                        if(ValueDlP&&(ValueDlP->itemcnt)){
-                            if(ValueDynlistP&& (!Dl_utf32_compareEqual(ValueDynlistP,ValueDlP))){
-                                objectMatches=0;
-                            }
-                        }else{
-                           objectMatches=0;
-                        }
-                    }
-                    if(ElmntType!=0&&CurrentXMLTreeElementP->type!=ElmntType){
-                        objectMatches=0;
-                    }
-                    if(objectMatches){
-                        DlAppend(&returnDlP,1,&CurrentXMLTreeElementP);
-                    }
-                break;
-                default:
-                    dprintf(DBGT_ERROR,"Tag of this type is not handled (type %x)",CurrentXMLTreeElementP->type);
-                break;
-            }
-            if(subindex!=subindex_needs_reinitialization){
-                //successfully parsed last element, so increment subindex
-                //are we the last child inside out parent
-                if((uint32_t)(++subindex)==CurrentXMLTreeElementP->parent->content->itemcnt){
-                    //yes, then one level upward
-                    LastXMLTreeElementP=CurrentXMLTreeElementP;
-                    CurrentXMLTreeElementP=CurrentXMLTreeElementP->parent;
-                }else{
-                    //
-                    CurrentXMLTreeElementP=(((struct xmlTreeElement**)CurrentXMLTreeElementP->parent->content->items)[subindex]);
-                }
-            }else{
-                //reinitialize pointers to parse first subelement
-                subindex=0;
-                CurrentXMLTreeElementP=(((struct xmlTreeElement**)CurrentXMLTreeElementP->content->items)[subindex]);
-                LastXMLTreeElementP=CurrentXMLTreeElementP->parent;
-            }
-        }else{
-            //go back upward
-            //get subindex from the view of the parent
-            uint32_t subindex_of_child_we_came_from=0;
-            while(subindex_of_child_we_came_from<CurrentXMLTreeElementP->content->itemcnt && LastXMLTreeElementP!=((struct xmlTreeElement**)CurrentXMLTreeElementP->content->items)[subindex_of_child_we_came_from]){
-                subindex_of_child_we_came_from++;
-            }
-            //is our object the last child element of our parent?
-            if(subindex_of_child_we_came_from==CurrentXMLTreeElementP->content->itemcnt-1){
-                //yes, so close our current tag and move one layer up
-                currentDepth--;
-                //Move one level upward
-                LastXMLTreeElementP=CurrentXMLTreeElementP;
-                CurrentXMLTreeElementP=CurrentXMLTreeElementP->parent;
-            }else{
-                //no, so setup to print it next
-                LastXMLTreeElementP=CurrentXMLTreeElementP;
-                CurrentXMLTreeElementP=(((struct xmlTreeElement**)CurrentXMLTreeElementP->content->items)[subindex_of_child_we_came_from+1]);
-                subindex=(int)subindex_of_child_we_came_from+1;
-            }
-        }
-    }while(CurrentXMLTreeElementP!=startingElementP->parent);     //TODO error with abort condition when starting from subelement
-    return returnDlP;
-};
-
-//all Name/Key/Value/Type checks must be true for an element to be appended to the returnDlP, or the input to the check must be NULL
-struct DynamicList* getAllSubelementsWith_freeArg234(struct xmlTreeElement* startingElementP,struct DynamicList* NameDynlistP,struct DynamicList* KeyDynlistP, struct DynamicList* ValueDynlistP, uint32_t ElmntType, uint32_t maxDepth){
-    struct DynamicList* returnDlP=getAllSubelementWith(startingElementP,NameDynlistP,KeyDynlistP,ValueDynlistP,ElmntType,maxDepth);
-    //Delete Dynlists if they are valid pointers
-    if(NameDynlistP)    {DlDelete(NameDynlistP);}
-    if(KeyDynlistP)     {DlDelete(KeyDynlistP);}
-    if(ValueDynlistP)   {DlDelete(ValueDynlistP);}
-    return returnDlP;
-}
-
-struct xmlTreeElement* getFirstSubelementWith_freeArg234(struct xmlTreeElement* startElementp,struct DynamicList* NameDynlistP,struct DynamicList* KeyDynlistP, struct DynamicList* ValueDynlistP, uint32_t ElmntType, uint32_t maxDepth){
-    struct xmlTreeElement* returnXmlElmntP=getFirstSubelementWith(startElementp,NameDynlistP,KeyDynlistP,ValueDynlistP,ElmntType,maxDepth);
-    //Delete Dynlists if they are valid pointers
-    if(NameDynlistP)    {DlDelete(NameDynlistP);}
-    if(KeyDynlistP)     {DlDelete(KeyDynlistP);}
-    if(ValueDynlistP)   {DlDelete(ValueDynlistP);}
-    return returnXmlElmntP;
-}
-
-//maxDepth 0 means only search direct childs of current element
-//TODO maxDepth is not working
-//For Name, Key, Value and ElmntType a NULL-prt can be passed, which means that this property is ignored when matching
-struct xmlTreeElement* getFirstSubelementWith(struct xmlTreeElement* startingElementP,struct DynamicList* NameDynlistP,struct DynamicList* KeyDynlistP, struct DynamicList* ValueDynlistP, uint32_t ElmntType, uint32_t maxDepth){
-    if(!startingElementP){
-        dprintf(DBGT_ERROR,"getFirstSubelement called with empty startingElemenP pointer");
-        return NULL;
-    }
-    struct xmlTreeElement* LastXMLTreeElementP=startingElementP->parent;
-    struct xmlTreeElement* CurrentXMLTreeElementP=startingElementP;
-    uint32_t currentDepth=0;        //for indentation
-    #define subindex_needs_reinitialization (-1)
-    int32_t subindex=0;             //which child node is currently processed
-    do{
-        if(CurrentXMLTreeElementP->parent==LastXMLTreeElementP){      //walk direction is downward
-            uint32_t objectMatches=1;
-            switch(CurrentXMLTreeElementP->type){
-                case xmltype_tag:
-                case xmltype_docRoot:
-                    if(CurrentXMLTreeElementP->content->itemcnt){
-                        //Jump to the next subelement
-                        currentDepth++;
-                        subindex=subindex_needs_reinitialization;
-                    }
-                    __attribute__ ((fallthrough));
-                case xmltype_cdata:
-                case xmltype_chardata:
-                case xmltype_comment:
-                case xmltype_pi:
-                    if(NameDynlistP){
-                        if(!Dl_utf32_compareEqual(CurrentXMLTreeElementP->name,NameDynlistP)){
-                            objectMatches=0;
-                        }
-                    }
-                    if(KeyDynlistP){
-                        struct DynamicList* ValueDlP=getValueFromKeyName(CurrentXMLTreeElementP->attributes,KeyDynlistP);
-                        if(ValueDlP&&(ValueDlP->itemcnt)){
-                            if(ValueDynlistP&& (!Dl_utf32_compareEqual(ValueDynlistP,ValueDlP))){
-                                objectMatches=0;
-                            }
-                        }else{
-                           objectMatches=0;
-                        }
-                    }
-                    if(ElmntType!=0&&CurrentXMLTreeElementP->type!=ElmntType){
-                        objectMatches=0;
-                    }
-                    if(objectMatches){
-                        return CurrentXMLTreeElementP;
-                    }
-                break;
-                default:
-                    dprintf(DBGT_ERROR,"Tag of this type is not handled (type %x)",CurrentXMLTreeElementP->type);
-                break;
-            }
-            if(subindex!=subindex_needs_reinitialization){
-                //successfully parsed last element, so increment subindex
-                //are we the last child inside out parent
-                if((uint32_t)(++subindex)==CurrentXMLTreeElementP->parent->content->itemcnt){
-                    //yes, then one level upward
-                    LastXMLTreeElementP=CurrentXMLTreeElementP;
-                    CurrentXMLTreeElementP=CurrentXMLTreeElementP->parent;
-                }else{
-                    //
-                    CurrentXMLTreeElementP=(((struct xmlTreeElement**)CurrentXMLTreeElementP->parent->content->items)[subindex]);
-                }
-            }else{
-                //reinitialize pointers to parse first subelement
-                subindex=0;
-                CurrentXMLTreeElementP=(((struct xmlTreeElement**)CurrentXMLTreeElementP->content->items)[subindex]);
-                LastXMLTreeElementP=CurrentXMLTreeElementP->parent;
-            }
-        }else{
-            //go back upward
-            //get subindex from the view of the parent
-            uint32_t subindex_of_child_we_came_from=0;
-            while(subindex_of_child_we_came_from<CurrentXMLTreeElementP->content->itemcnt && LastXMLTreeElementP!=((struct xmlTreeElement**)CurrentXMLTreeElementP->content->items)[subindex_of_child_we_came_from]){
-                subindex_of_child_we_came_from++;
-            }
-            //is our object the last child element of our parent?
-            if(subindex_of_child_we_came_from==CurrentXMLTreeElementP->content->itemcnt-1){
-                //yes, so close our current tag and move one layer up
-                currentDepth--;
-                //Move one level upward
-                LastXMLTreeElementP=CurrentXMLTreeElementP;
-                CurrentXMLTreeElementP=CurrentXMLTreeElementP->parent;
-            }else{
-                //no, so setup to print it next
-                LastXMLTreeElementP=CurrentXMLTreeElementP;
-                CurrentXMLTreeElementP=(((struct xmlTreeElement**)CurrentXMLTreeElementP->content->items)[subindex_of_child_we_came_from+1]);
-                subindex=(int)subindex_of_child_we_came_from+1;
-            }
-        }
-    }while(CurrentXMLTreeElementP!=startingElementP->parent);     //TODO error with abort condition when starting from subelement
-    return NULL;
-};
-
-struct DynamicList* DlDuplicate(struct DynamicList* inDynlistP){
-    if(!inDynlistP){
-        dprintf(DBGT_ERROR,"Called with Nullptr");
-        return 0;
-    }
-    if((inDynlistP->elementTypeId!=DlType_utf32)&&(inDynlistP->elementTypeId!=DlType_CMatch)){
-        dprintf(DBGT_ERROR,"currently unsupported list type");
-        return 0;
-    }
-    struct DynamicList* newDynlistP=DlAlloc(inDynlistP->elementSize,inDynlistP->elementTypeId,inDynlistP->itemcnt,inDynlistP->items);
-    return newDynlistP;
-}
-
-struct DynamicList* DlCombine(struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P){
-    //check if nullptr
-    if(!Dynlist1P||!Dynlist2P){
-        dprintf(DBGT_ERROR,"Called with one Nullptr");
-        return 0;
-    }
-    //check if of same type
-    if(Dynlist1P->elementTypeId!=Dynlist2P->elementTypeId){
-        dprintf(DBGT_ERROR,"Attempted to concatenate lists of different types");
-        dprintf(DBGT_ERROR,"first type was %d, second type was %d",Dynlist1P->elementTypeId,Dynlist2P->elementTypeId);
-        return 0;
-    }
-    uint32_t newItemcnt=Dynlist1P->itemcnt+Dynlist2P->itemcnt;
-    struct DynamicList* DynlistRP=DlAlloc(Dynlist1P->elementSize,Dynlist1P->elementTypeId,newItemcnt,NULL);
-    if(Dynlist1P->itemcnt){
-        memcpy(DynlistRP->items,Dynlist1P->items,(Dynlist1P->elementSize)*(Dynlist1P->itemcnt));
-    }
-    if(Dynlist2P->itemcnt){
-        memcpy(((char*)(DynlistRP->items))+(Dynlist1P->elementSize)*(Dynlist1P->itemcnt),Dynlist2P->items,(Dynlist1P->elementSize)*(Dynlist2P->itemcnt));
-    }
-    return(DynlistRP);
-}
-
-void DlAppend(struct DynamicList** DynlistToResizePP,uint32_t numOfElementsToAppend,void* AppendDataP){
-    if(!DynlistToResizePP){
-        dprintf(DBGT_ERROR,"DlAppend was called with NULLPtrPtr");
-        exit(1);
-    }
-    if(!(*DynlistToResizePP)){  //list needs initialization
-        dprintf(DBGT_ERROR,"List to append does not exist yet NULLPtr");
-        exit(1);
-    }
-    uint32_t oldListItemcnt=(*DynlistToResizePP)->itemcnt;
-    DlResize(DynlistToResizePP,oldListItemcnt+numOfElementsToAppend);
-    if(oldListItemcnt+numOfElementsToAppend!=0){
-        memcpy(((char*)((*DynlistToResizePP)->items))+((*DynlistToResizePP)->elementSize)*oldListItemcnt,AppendDataP,(*DynlistToResizePP)->elementSize*numOfElementsToAppend);
-    }
-}
-
-struct DynamicList* DlCombine_freeArg1(struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P){
-    struct DynamicList* DynlistRP=DlCombine(Dynlist1P,Dynlist2P);
-    DlDelete(Dynlist1P);
-    return(DynlistRP);
-}
-
-struct DynamicList* DlCombine_freeArg2(struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P){
-    struct DynamicList* DynlistRP=DlCombine(Dynlist1P,Dynlist2P);
-    DlDelete(Dynlist2P);
-    return(DynlistRP);
-}
-
-struct DynamicList* DlCombine_freeArg12(struct DynamicList* Dynlist1P,struct DynamicList* Dynlist2P){
-    struct DynamicList* DynlistRP=DlCombine(Dynlist1P,Dynlist2P);
-    DlDelete(Dynlist1P);
-    DlDelete(Dynlist2P);
-    return(DynlistRP);
-}
-
-struct DynamicList* getValueFromKeyName_freeArg2(struct DynamicList* attlist,struct DynamicList* nameD2){
-    struct DynamicList* DynlistRP=getValueFromKeyName(attlist,nameD2);
-    DlDelete(nameD2);
-    return DynlistRP;
-}
-
-struct DynamicList* getValueFromKeyName(struct DynamicList* attlist,struct DynamicList* nameD2){
-    if(!attlist){
-        dprintf(DBGT_ERROR,"called getValueFromKeyName with nullptr");
-    }
-    if(!attlist->itemcnt){
-        return 0;
-    }
-    for(uint32_t index=0;index<attlist->itemcnt;index++){
-        struct DynamicList* keyUtf32StringDlP=(((struct key_val_pair**)(attlist->items))[index])->key;
-        if(Dl_utf32_compareEqual(keyUtf32StringDlP,nameD2)){
-            struct DynamicList* valUtf32StringDlP=(((struct key_val_pair**)(attlist->items))[index])->value;
-            return valUtf32StringDlP;
-        }
-    }
-    return 0;
+#define CreateIntegerTypeTo_Dl_utf32Char_Parser(name,type)                                                                  \
+Dl_##name* Dl_utf32Char_to_##name(Dl_CM* NumSepP,Dl_utf32Char* InputString){                                                \
+    return Dl_utf32Char_to_##name##_freeArg1(Dl_##name##_shallowCopy(NumSepP),InputString);                                 \
+}                                                                                                                           \
+                                                                                                                            \
+Dl_##name* Dl_utf32Char_to_##name##_freeArg1(Dl_CM* NumSepP,Dl_utf32Char* InputString){                                     \
+    Dl_##name* returnDlP=Dl_##name##_alloc(0,NULL);                                                                         \
+    uint32_t offsetInString=0;                                                                                              \
+    double mantisVal=0;                                                                                                     \
+    enum{flag_in_digits=        (1<<0),                                                                                     \
+         flag_minus_mantis=     (1<<5),                                                                                     \
+         };                                                                                                                 \
+    int32_t flagreg=0;                                                                                                      \
+    int32_t NumOfDecplcDig=0;                                                                                               \
+    int32_t exponVal=0;                                                                                                     \
+    enum {                                                                                                                  \
+        match_res_nummatch_sign=        10,                                                                                 \
+        match_res_nummatch_nseperator=  11,                                                                                 \
+        match_res_nummatch_illegal=     12                                                                                  \
+    };                                                                                                                      \
+    Dl_MCM* nummatch=Dl_MCM_initFromList(                                                                                   \
+        Dl_CM_initFromList('0','0'),                                                                                        \
+        Dl_CM_initFromList('1','1'),                                                                                        \
+        Dl_CM_initFromList('2','2'),                                                                                        \
+        Dl_CM_initFromList('3','3'),                                                                                        \
+        Dl_CM_initFromList('4','4'),                                                                                        \
+        Dl_CM_initFromList('5','5'),                                                                                        \
+        Dl_CM_initFromList('6','6'),                                                                                        \
+        Dl_CM_initFromList('7','7'),                                                                                        \
+        Dl_CM_initFromList('8','8'),                                                                                        \
+        Dl_CM_initFromList('9','9'),                                                                                        \
+        Dl_CM_initFromList('-','-'),                                                                                        \
+        NumSepP,                                                                                                            \
+        Dl_CM_initFromList(0x00,0xffff)                                                                                     \
+    );                                                                                                                      \
+    while(offsetInString<InputString->itemcnt){                                                                             \
+        int matchIndex=Dl_MCM_matchAndInc(InputString,&offsetInString,nummatch,0);                                          \
+        switch(matchIndex){                                                                                                 \
+            case match_res_nummatch_illegal:                                                                                \
+                dprintf(DBGT_ERROR,"Illegal Character in inputstring");                                                     \
+                return 0;                                                                                                   \
+            break;                                                                                                          \
+            case match_res_nummatch_sign:                                                                                   \
+                if(flagreg==0){                                                                                             \
+                    flagreg|=flag_minus_mantis;                                                                             \
+                }else{                                                                                                      \
+                    dprintf(DBGT_ERROR,"Unexpected Sign Char");                                                             \
+                    return 0;                                                                                               \
+                }                                                                                                           \
+            break;                                                                                                          \
+            case match_res_nummatch_nsperator:                                                                              \
+                if(flagreg&flag_in_digits){                                                                                 \
+                    if(flagreg&flag_minus_mantis){                                                                          \
+                        mantisVal*=(-1);                                                                                    \
+                    }                                                                                                       \
+                    mantisVal*=pow(10,exponVal);                                                                            \
+                    type retVal=(type*)mantisVal:                                                                           \
+                    Dl_##name##_append(returnDlP,&retVal);                                                                  \
+                    flagreg=0;                                                                                              \
+                    mantisVal=0;                                                                                            \
+                }                                                                                                           \
+            break;                                                                                                          \
+            default:                                                                                                        \
+                flagreg|=flag_in_digits;                                                                                    \
+                mantisVal*=10;                                                                                              \
+                mantisVal+=matchIndex;                                                                                      \
+            break;                                                                                                          \
+        }                                                                                                                   \
+    }                                                                                                                       \
+    if(flagreg&flag_in_digits){                                                                                             \
+        if(flagreg&flag_minus_mantis){                                                                                      \
+            mantisVal*=(-1);                                                                                                \
+        }                                                                                                                   \
+        type retVal=(type*)mantisVal:                                                                                       \
+        Dl_##name##_append(returnDlP,&retVal);                                                                              \
+    }                                                                                                                       \
+    Dl_MCM_delete(nummatch);                                                                                                \
+    return returnDlP;                                                                                                       \
 }
 
 
 
-/*
-uint32_t nameCheckFkt(struct xmlTreeElement* nameInit_or_xmlElement){
-    static struct DynamicList* nameDynlistUFT32=0;        //0 if nor initialized
-    if(nameInit_or_xmlElement){
-        if(!nameDynlistUFT32){//if function was not initialized with a name yet
-            nameDynlistUFT32=(struct DynamicList*) nameInit_or_xmlElement;
-            if(nameDynlistUFT32->type!=dynlisttype_utf32chars){
-                return 43;
-            }
-            return 42;  //initialized name succesfully
-        }else{
-            if(compareEqualDynamicUTF32List(nameInit_or_xmlElement->name,nameDynlistUFT32)){
-                return 1;
-            }else{
-                return 0;
-            }
-        }
-    }else{
-        nameDynlistUFT32=0; //Deinit
-        return 42;
-    }
-}
-*/
-
-struct DynamicList* Dl_utf32_to_Dl_int64(struct DynamicList* NumberSeperatorP,struct DynamicList* utf32StringInP){
-    return Dl_utf32_to_Dl_int64_freeArg1(DlDuplicate(NumberSeperatorP),utf32StringInP);
-}
-
-//NumberSeperator can also be used to specify ignored characters
-struct DynamicList* Dl_utf32_to_Dl_int64_freeArg1(struct DynamicList* NumberSeperatorP,struct DynamicList* utf32StringInP){
-    if(!utf32StringInP||utf32StringInP->elementTypeId!=DlType_utf32){
-        dprintf(DBGT_ERROR,"invalid parameter passed to utf32StringInP");
-    }
-    if(NumberSeperatorP->elementTypeId!=DlType_CMatch){
-        dprintf(DBGT_ERROR,"Invalid parameter passed to function");
-        return 0;
-    }
-    struct DynamicList* returnDlP=DlAlloc(sizeof(int64_t),DlType_int64,0,NULL);
-    uint32_t offsetInString=0;
-    enum{flag_in_digits=(1<<0),flag_minus_mantis=(1<<1)};
-    int32_t flagreg=0;
-    int64_t mantisVal=0;
-    enum {
-        match_res_nummatch_0=0,
-        match_res_nummatch_1=1,
-        match_res_nummatch_2=2,
-        match_res_nummatch_3=3,
-        match_res_nummatch_4=4,
-        match_res_nummatch_5=5,
-        match_res_nummatch_6=6,
-        match_res_nummatch_7=7,
-        match_res_nummatch_8=8,
-        match_res_nummatch_9=9,
-        match_res_nummatch_sign=10,
-        match_res_nummatch_nsperator=11,
-        match_res_nummatch_illegal=12
-    };
-    struct DynamicList* nummatch=Dl_MCMatchP_create(13,
-        Dl_CMatch_create(2,'0','0'),
-        Dl_CMatch_create(2,'1','1'),
-        Dl_CMatch_create(2,'2','2'),
-        Dl_CMatch_create(2,'3','3'),
-        Dl_CMatch_create(2,'4','4'),
-        Dl_CMatch_create(2,'5','5'),
-        Dl_CMatch_create(2,'6','6'),
-        Dl_CMatch_create(2,'7','7'),
-        Dl_CMatch_create(2,'8','8'),
-        Dl_CMatch_create(2,'9','9'),
-        Dl_CMatch_create(2,'-','-'),
-        NumberSeperatorP,
-        Dl_CMatch_create(2,0x00,0xffff)
-    );
-    uint32_t matchIndex=0;
-    while(offsetInString<utf32StringInP->itemcnt){
-        //no offset because will match all possible chars
-        matchIndex=MatchAndIncrement(utf32StringInP,&offsetInString,nummatch,0);
-        switch(matchIndex){
-            case match_res_nummatch_illegal:
-                dprintf(DBGT_ERROR,"Illegal Character in inputstring");
-                return 0;
-            break;
-            case match_res_nummatch_sign:
-                if(flagreg==0){
-                    flagreg|=flag_minus_mantis;
-                }else{
-                    dprintf(DBGT_ERROR,"Unexpected Sign Char");
-                    return 0;
-                }
-            break;
-            case match_res_nummatch_nsperator:
-                if(flagreg&flag_in_digits){
-                    if(flagreg&flag_minus_mantis){
-                        mantisVal*=(-1);
-                    }
-                    DlAppend(&returnDlP,1,&mantisVal);
-                    flagreg=0;
-                    mantisVal=0;
-                }
-            break;
-            default:
-                flagreg|=flag_in_digits;
-                mantisVal*=10;
-                mantisVal+=matchIndex;
-            break;
-        }
-    }
-    if(flagreg&flag_in_digits){
-        if(flagreg&flag_minus_mantis){
-            mantisVal*=(-1);
-        }
-        DlAppend(&returnDlP,1,&mantisVal);
-    }
-    DlDelete(nummatch);
-    return returnDlP;
-}
 
 
-struct DynamicList* Dl_utf32_to_Dl_double(struct DynamicList* NumberSeperatorP, struct DynamicList* OrderOfMagP, struct DynamicList* DecimalSeperatorP, struct DynamicList* utf32StringInP){
-    return Dl_utf32_to_Dl_double_freeArg123(DlDuplicate(NumberSeperatorP), DlDuplicate(OrderOfMagP), DlDuplicate(DecimalSeperatorP), utf32StringInP);
-}
-
-struct DynamicList* Dl_utf32_to_Dl_double_freeArg123(struct DynamicList* NumberSeperatorP,struct DynamicList* OrderOfMagP, struct DynamicList* DecimalSeperatorP,struct DynamicList* utf32StringInP){
-    struct DynamicList* returnDlP=DlAlloc(sizeof(double),DlType_double,0,NULL);
-    uint32_t offsetInString=0;
-    double mantisVal=0;
-    enum{flag_in_digits=(1<<0),flag_decplc=(1<<1),flag_in_decplcdigits=(1<<2),flag_orOfMag=(1<<3),flag_in_exp_digits=(1<<4),flag_minus_mantis=(1<<5),flag_minus_exp=(1<<6)};
-    int32_t flagreg=0;
-    int32_t NumOfDecplcDig=0;
-    int32_t exponVal=0;
-    enum {
-        match_res_nummatch_0=0,
-        match_res_nummatch_1=1,
-        match_res_nummatch_2=2,
-        match_res_nummatch_3=3,
-        match_res_nummatch_4=4,
-        match_res_nummatch_5=5,
-        match_res_nummatch_6=6,
-        match_res_nummatch_7=7,
-        match_res_nummatch_8=8,
-        match_res_nummatch_9=9,
-        match_res_nummatch_sign=10,
-        match_res_nummatch_nseperator=11,
-        match_res_nummatch_dseperator=12,
-        match_res_nummatch_OrderOfMag=13,
-        match_res_nummatch_illegal=14
-    };
-    struct DynamicList* nummatch=Dl_MCMatchP_create(15,
-        Dl_CMatch_create(2,'0','0'),
-        Dl_CMatch_create(2,'1','1'),
-        Dl_CMatch_create(2,'2','2'),
-        Dl_CMatch_create(2,'3','3'),
-        Dl_CMatch_create(2,'4','4'),
-        Dl_CMatch_create(2,'5','5'),
-        Dl_CMatch_create(2,'6','6'),
-        Dl_CMatch_create(2,'7','7'),
-        Dl_CMatch_create(2,'8','8'),
-        Dl_CMatch_create(2,'9','9'),
-        Dl_CMatch_create(2,'-','-'),
-        NumberSeperatorP,
-        DecimalSeperatorP,
-        OrderOfMagP,
-        Dl_CMatch_create(2,0x00,0xffff)
-    );
-    while(offsetInString<utf32StringInP->itemcnt){
-        //no offset because will match all possible chars
-        uint32_t matchIndex=MatchAndIncrement(utf32StringInP,&offsetInString,nummatch,0);
-        switch(matchIndex){
-            case match_res_nummatch_illegal:
-                dprintf(DBGT_ERROR,"Illegal Character in inputstring");
-                return 0;
-            break;
-            case match_res_nummatch_sign:
-                if(flagreg&flag_orOfMag){
-                    flagreg|=flag_minus_exp;
-                }else if(flagreg==0){
-                    flagreg|=flag_minus_mantis;
-                }else{
-                    dprintf(DBGT_ERROR,"Unexpected Sign Char");
-                    return 0;
-                }
-            break;
-            case match_res_nummatch_nseperator:
-                if(flagreg&flag_orOfMag){
-                    dprintf(DBGT_ERROR,"Number ended appruptly after exponent");
-                    return 0;
-                }
-                if(flagreg&flag_decplc){
-                    dprintf(DBGT_ERROR,"Number ended appruptly after DecimalSeperator Char");
-                    return 0;
-                }
-                if(flagreg&(flag_in_digits|flag_in_decplcdigits|flag_in_exp_digits)){
-                    if(flagreg&flag_minus_mantis){
-                        mantisVal*=(-1.0);
-                    }
-                    if(flagreg&flag_minus_exp){
-                        exponVal*=(-1);
-                    }
-                    exponVal-=NumOfDecplcDig;
-                    mantisVal*=pow(10,exponVal);
-                    DlAppend(&returnDlP,1,&mantisVal);
-                    flagreg=0;
-                    NumOfDecplcDig=0;
-                    mantisVal=0;
-                    exponVal=0;
-                }
-            break;
-            case match_res_nummatch_dseperator:
-                if(flagreg&flag_in_digits){
-                    flagreg|=flag_in_decplcdigits;         //enable in_decplcdigits flag
-                    flagreg&= ~(flag_in_digits);    //disable in_digits flag
-                }else if(flagreg==0){               //to handle ".2"
-                    flagreg|=flag_in_decplcdigits;
-                    mantisVal=0;
-                }else{
-                    if(flagreg&flag_in_exp_digits){
-                        dprintf(DBGT_ERROR,"unexpected decDigSeparator in exponent");
-                    }else if(flagreg&flag_in_decplcdigits){
-                        dprintf(DBGT_ERROR,"more than one decDigSeperator in mantisse");
-                    }
-                }
-            break;
-            case match_res_nummatch_OrderOfMag:
-                if(flagreg&(flag_in_digits|flag_in_decplcdigits)){
-                    flagreg|=flag_orOfMag;
-                    flagreg&=~(flag_in_digits|flag_in_decplcdigits);    //clear flags
-                }else{
-                    dprintf(DBGT_ERROR,"Unexpected Order of Magnitude Char");
-                    return 0;
-                }
-            break;
-            default:
-                if(flagreg&flag_in_decplcdigits){
-                    NumOfDecplcDig++;
-                    mantisVal*=10;
-                    mantisVal+=matchIndex;
-                }else if(flagreg&flag_decplc){
-                    NumOfDecplcDig++;
-                    flagreg|=flag_in_decplcdigits;
-                    flagreg&=~(flag_decplc);
-                    mantisVal*=10;
-                    mantisVal+=matchIndex;
-                }else if(flagreg&flag_in_digits){
-                    mantisVal*=10;
-                    mantisVal+=matchIndex;
-                }else if(flagreg&flag_orOfMag){
-                    exponVal=matchIndex;
-                    flagreg|=flag_in_exp_digits;
-                    flagreg&=~(flag_orOfMag);
-                }else if(flagreg&flag_in_exp_digits){
-                    exponVal*=10;
-                    exponVal+=matchIndex;
-                }else{
-                    flagreg|=flag_in_digits;
-                    mantisVal=matchIndex;
-                }
-            break;
-        }
-    }
-    //finish parsing last double
-    if(flagreg&flag_orOfMag){
-        dprintf(DBGT_ERROR,"Number ended appruptly after exponent");
-        return 0;
-    }
-    if(flagreg&flag_decplc){
-        dprintf(DBGT_ERROR,"Number ended appruptly after DecimalSeperator Char");
-        return 0;
-    }
-    if(flagreg&(flag_in_digits|flag_in_decplcdigits|flag_in_exp_digits)){
-        if(flagreg&flag_minus_mantis){
-            mantisVal*=(-1.0);
-        }
-        if(flagreg&flag_minus_exp){
-            exponVal*=(-1);
-        }
-        exponVal-=NumOfDecplcDig;
-        mantisVal*=pow(10,exponVal);
-        DlAppend(&returnDlP,1,&mantisVal);
-    }
-    DlDelete(nummatch);       //TODO fix for all return types
-    return returnDlP;
+#define CreateFloatingPointTypeTo_Dl_utf32Char_Parser(name,type)                                                            \
+Dl_##name* Dl_utf32Char_to_##name(Dl_CM* NumSepP,Dl_CM* OrdOfMagP, Dl_CM* DecSepP,Dl_utf32Char* InputString){               \
+    return Dl_utf32Char_to_##name##_freeArg123(Dl_##name##_shallowCopy(NumSepP), Dl_##name##_shallowCopy(OrdOfMagP), Dl_##name##_shallowCopy(DecSepP), InputString); \
+}                                                                                                                           \
+                                                                                                                            \
+Dl_##name* Dl_utf32Char_to_##name##_freeArg123(Dl_CM* NumSepP,Dl_CM* OrdOfMagP, Dl_CM* DecSepP,Dl_utf32Char* InputString){  \
+    Dl_##name##* returnDlP=Dl_##name##_alloc(0,NULL);                                                                       \
+    uint32_t offsetInString=0;                                                                                              \
+    double mantisVal=0;                                                                                                     \
+    enum{flag_in_digits=        (1<<0),                                                                                     \
+         flag_decplc=           (1<<1),                                                                                     \
+         flag_in_decplcdigits=  (1<<2),                                                                                     \
+         flag_orOfMag=          (1<<3),                                                                                     \
+         flag_in_exp_digits=    (1<<4),                                                                                     \
+         flag_minus_mantis=     (1<<5),                                                                                     \
+         flag_minus_exp=        (1<<6)                                                                                      \
+         };                                                                                                                 \
+    int32_t flagreg=0;                                                                                                      \
+    int32_t NumOfDecplcDig=0;                                                                                               \
+    int32_t exponVal=0;                                                                                                     \
+    enum {                                                                                                                  \
+        match_res_nummatch_sign=        10,                                                                                 \
+        match_res_nummatch_nseperator=  11,                                                                                 \
+        match_res_nummatch_dseperator=  12,                                                                                 \
+        match_res_nummatch_OrderOfMag=  13,                                                                                 \
+        match_res_nummatch_illegal=     14                                                                                  \
+    };                                                                                                                      \
+    Dl_MCM* nummatch=Dl_MCM_initFromList(                                                                                   \
+        Dl_CM_initFromList('0','0'),                                                                                        \
+        Dl_CM_initFromList('1','1'),                                                                                        \
+        Dl_CM_initFromList('2','2'),                                                                                        \
+        Dl_CM_initFromList('3','3'),                                                                                        \
+        Dl_CM_initFromList('4','4'),                                                                                        \
+        Dl_CM_initFromList('5','5'),                                                                                        \
+        Dl_CM_initFromList('6','6'),                                                                                        \
+        Dl_CM_initFromList('7','7'),                                                                                        \
+        Dl_CM_initFromList('8','8'),                                                                                        \
+        Dl_CM_initFromList('9','9'),                                                                                        \
+        Dl_CM_initFromList('-','-'),                                                                                        \
+        NumSepP,                                                                                                            \
+        DecSepP,                                                                                                            \
+        OrdOfMagP,                                                                                                          \
+        Dl_CM_initFromList(0x00,0xffff)                                                                                     \
+    );                                                                                                                      \
+    while(offsetInString<InputString->itemcnt){                                                                             \
+        int matchIndex=Dl_MCM_matchAndInc(InputString,&offsetInString,nummatch,0);                                          \
+        switch(matchIndex){                                                                                                 \
+            case match_res_nummatch_illegal:                                                                                \
+                dprintf(DBGT_ERROR,"Illegal Character in inputstring");                                                     \
+                return 0;                                                                                                   \
+            break;                                                                                                          \
+            case match_res_nummatch_sign:                                                                                   \
+                if(flagreg&flag_orOfMag){                                                                                   \
+                    flagreg|=flag_minus_exp;                                                                                \
+                }else if(flagreg==0){                                                                                       \
+                    flagreg|=flag_minus_mantis;                                                                             \
+                }else{                                                                                                      \
+                    dprintf(DBGT_ERROR,"Unexpected Sign Char");                                                             \
+                    return 0;                                                                                               \
+                }                                                                                                           \
+            break;                                                                                                          \
+            case match_res_nummatch_nseperator:                                                                             \
+                if(flagreg&flag_orOfMag){                                                                                   \
+                    dprintf(DBGT_ERROR,"Number ended appruptly after exponent");                                            \
+                    return 0;                                                                                               \
+                }                                                                                                           \
+                if(flagreg&flag_decplc){                                                                                    \
+                    dprintf(DBGT_ERROR,"Number ended appruptly after DecimalSeperator Char");                               \
+                    return 0;                                                                                               \
+                }                                                                                                           \
+                if(flagreg&(flag_in_digits|flag_in_decplcdigits|flag_in_exp_digits)){                                       \
+                    if(flagreg&flag_minus_mantis){                                                                          \
+                        mantisVal*=(-1.0);                                                                                  \
+                    }                                                                                                       \
+                    if(flagreg&flag_minus_exp){                                                                             \
+                        exponVal*=(-1);                                                                                     \
+                    }                                                                                                       \
+                    exponVal-=NumOfDecplcDig;                                                                               \
+                    mantisVal*=pow(10,exponVal);                                                                            \
+                    type retVal=(type*)mantisVal:                                                                           \
+                    Dl_##name##_append(returnDlP,&retVal);                                                                  \
+                    flagreg=0;                                                                                              \
+                    NumOfDecplcDig=0;                                                                                       \
+                    mantisVal=0;                                                                                            \
+                    exponVal=0;                                                                                             \
+                }                                                                                                           \
+            break;                                                                                                          \
+            case match_res_nummatch_dseperator:                                                                             \
+                if(flagreg&flag_in_digits){                                                                                 \
+                    flagreg|=flag_in_decplcdigits;                                                                          \
+                    flagreg&= ~(flag_in_digits);                                                                            \
+                }else if(flagreg==0){                                                                                       \
+                    flagreg|=flag_in_decplcdigits;                                                                          \
+                    mantisVal=0;                                                                                            \
+                }else{                                                                                                      \
+                    if(flagreg&flag_in_exp_digits){                                                                         \
+                        dprintf(DBGT_ERROR,"unexpected decDigSeparator in exponent");                                       \
+                        exit(1);                                                                                            \
+                    }else if(flagreg&flag_in_decplcdigits){                                                                 \
+                        dprintf(DBGT_ERROR,"more than one decDigSeperator in mantisse");                                    \
+                        exit(1);                                                                                            \
+                    }                                                                                                       \
+                }                                                                                                           \
+            break;                                                                                                          \
+            case match_res_nummatch_OrderOfMag:                                                                             \
+                if(flagreg&(flag_in_digits|flag_in_decplcdigits)){                                                          \
+                    flagreg|=flag_orOfMag;                                                                                  \
+                    flagreg&=~(flag_in_digits|flag_in_decplcdigits);                                                        \
+                }else{                                                                                                      \
+                    dprintf(DBGT_ERROR,"Unexpected Order of Magnitude Char");                                               \
+                    exit(1);                                                                                                \
+                }                                                                                                           \
+            break;                                                                                                          \
+            default:                                                                                                        \
+                if(flagreg&flag_in_decplcdigits){                                                                           \
+                    NumOfDecplcDig++;                                                                                       \
+                    mantisVal*=10;                                                                                          \
+                    mantisVal+=matchIndex;                                                                                  \
+                }else if(flagreg&flag_decplc){                                                                              \
+                    NumOfDecplcDig++;                                                                                       \
+                    flagreg|=flag_in_decplcdigits;                                                                          \
+                    flagreg&=~(flag_decplc);                                                                                \
+                    mantisVal*=10;                                                                                          \
+                    mantisVal+=matchIndex;                                                                                  \
+                }else if(flagreg&flag_in_digits){                                                                           \
+                    mantisVal*=10;                                                                                          \
+                    mantisVal+=matchIndex;                                                                                  \
+                }else if(flagreg&flag_orOfMag){                                                                             \
+                    exponVal=matchIndex;                                                                                    \
+                    flagreg|=flag_in_exp_digits;                                                                            \
+                    flagreg&=~(flag_orOfMag);                                                                               \
+                }else if(flagreg&flag_in_exp_digits){                                                                       \
+                    exponVal*=10;                                                                                           \
+                    exponVal+=matchIndex;                                                                                   \
+                }else{                                                                                                      \
+                    flagreg|=flag_in_digits;                                                                                \
+                    mantisVal=matchIndex;                                                                                   \
+                }                                                                                                           \
+            break;                                                                                                          \
+        }                                                                                                                   \
+    }                                                                                                                       \
+    if(flagreg&flag_orOfMag){                                                                                               \
+        dprintf(DBGT_ERROR,"Number ended appruptly after exponent");                                                        \
+        exit(1);                                                                                                            \
+    }                                                                                                                       \
+    if(flagreg&flag_decplc){                                                                                                \
+        dprintf(DBGT_ERROR,"Number ended appruptly after DecimalSeperator Char");                                           \
+        exit(1);                                                                                                            \
+    }                                                                                                                       \
+    if(flagreg&(flag_in_digits|flag_in_decplcdigits|flag_in_exp_digits)){                                                   \
+        if(flagreg&flag_minus_mantis){                                                                                      \
+            mantisVal*=(-1.0);                                                                                              \
+        }                                                                                                                   \
+        if(flagreg&flag_minus_exp){                                                                                         \
+            exponVal*=(-1);                                                                                                 \
+        }                                                                                                                   \
+        exponVal-=NumOfDecplcDig;                                                                                           \
+        mantisVal*=pow(10,exponVal);                                                                                        \
+        type retVal=(type*)mantisVal:                                                                                       \
+        Dl_##name##_append(returnDlP,&retVal);                                                                              \
+    }                                                                                                                       \
+    Dl_MCM_delete(nummatch);                                                                                                \
+    return returnDlP;                                                                                                       \
 }
 
 
-struct DynamicList* Dl_utf32_Substring_freeArg1(struct DynamicList* utf32StringInP,int32_t startChar,int32_t endChar){
-    struct DynamicList* SubstringDlP=Dl_utf32_Substring(utf32StringInP,startChar,endChar);
-    DlDelete(utf32StringInP);
-    return SubstringDlP;
-};
-
-struct DynamicList* Dl_utf32_Substring(struct DynamicList* utf32StringInP,int32_t startChar,int32_t endChar){
-    //Check type of input list
-    if(!utf32StringInP||utf32StringInP->elementTypeId!=DlType_utf32){
-        dprintf(DBGT_ERROR,"Invalid argument for input string");
-        exit(1);
-    }
-    //handle negative values for and End
-    if(startChar<0){
-        startChar=utf32StringInP->itemcnt+startChar;
-    }
-    if(endChar<0){
-        endChar=utf32StringInP->itemcnt+endChar;
-    }
-    //clamp
-    startChar=clamp_int32_t(0,startChar,utf32StringInP->itemcnt-1);
-    endChar=clamp_int32_t(0,endChar,utf32StringInP->itemcnt-1);
-
-    //Check if there even is a return string
-    int32_t newStringLength=1+endChar-startChar;
-    if(newStringLength<=0){
-        return DlAlloc(sizeof(uint32_t),DlType_utf32,0,NULL);
-    }
-    void* substringSrcP=((uint32_t*)(utf32StringInP->items))+startChar;
-    return DlAlloc(sizeof(uint32_t),DlType_utf32,newStringLength,substringSrcP);
-}
-
-struct DynamicList* Dl_utf32_to_Dl_float(struct DynamicList* NumberSeperatorP, struct DynamicList* OrderOfMagP, struct DynamicList* DecimalSeperatorP, struct DynamicList* utf32StringInP){
-    return Dl_utf32_to_Dl_float_freeArg123(DlDuplicate(NumberSeperatorP), DlDuplicate(OrderOfMagP), DlDuplicate(DecimalSeperatorP), utf32StringInP);
-}
-
-
-struct DynamicList* Dl_utf32_to_Dl_float_freeArg123(struct DynamicList* NumberSeperatorP,struct DynamicList* OrderOfMagP, struct DynamicList* DecimalSeperatorP,struct DynamicList* utf32StringInP){
-    struct DynamicList* returnDlP=DlAlloc(sizeof(float),DlType_float,0,NULL);
-    uint32_t offsetInString=0;
-    float mantisVal=0;
-    enum{flag_in_digits=(1<<0),flag_decplc=(1<<1),flag_in_decplcdigits=(1<<2),flag_orOfMag=(1<<3),flag_in_exp_digits=(1<<4),flag_minus_mantis=(1<<5),flag_minus_exp=(1<<6)};
-    int32_t flagreg=0;
-    int32_t NumOfDecplcDig=0;
-    int32_t exponVal=0;
-    enum {
-        match_res_nummatch_0=0,
-        match_res_nummatch_1=1,
-        match_res_nummatch_2=2,
-        match_res_nummatch_3=3,
-        match_res_nummatch_4=4,
-        match_res_nummatch_5=5,
-        match_res_nummatch_6=6,
-        match_res_nummatch_7=7,
-        match_res_nummatch_8=8,
-        match_res_nummatch_9=9,
-        match_res_nummatch_sign=10,
-        match_res_nummatch_nseperator=11,
-        match_res_nummatch_dseperator=12,
-        match_res_nummatch_OrderOfMag=13,
-        match_res_nummatch_illegal=14
-    };
-    struct DynamicList* nummatch=Dl_MCMatchP_create(15,
-        Dl_CMatch_create(2,'0','0'),
-        Dl_CMatch_create(2,'1','1'),
-        Dl_CMatch_create(2,'2','2'),
-        Dl_CMatch_create(2,'3','3'),
-        Dl_CMatch_create(2,'4','4'),
-        Dl_CMatch_create(2,'5','5'),
-        Dl_CMatch_create(2,'6','6'),
-        Dl_CMatch_create(2,'7','7'),
-        Dl_CMatch_create(2,'8','8'),
-        Dl_CMatch_create(2,'9','9'),
-        Dl_CMatch_create(2,'-','-'),
-        NumberSeperatorP,
-        DecimalSeperatorP,
-        OrderOfMagP,
-        Dl_CMatch_create(2,0x00,0xffff)
-    );
-    while(offsetInString<utf32StringInP->itemcnt){
-        //no offset because will match all possible chars
-        uint32_t matchIndex=MatchAndIncrement(utf32StringInP,&offsetInString,nummatch,0);
-        switch(matchIndex){
-            case match_res_nummatch_illegal:
-                dprintf(DBGT_ERROR,"Illegal Character in inputstring");
-                return 0;
-            break;
-            case match_res_nummatch_sign:
-                if(flagreg&flag_orOfMag){
-                    flagreg|=flag_minus_exp;
-                }else if(flagreg==0){
-                    flagreg|=flag_minus_mantis;
-                }else{
-                    dprintf(DBGT_ERROR,"Unexpected Sign Char");
-                    return 0;
-                }
-            break;
-            case match_res_nummatch_nseperator:
-                if(flagreg&flag_orOfMag){
-                    dprintf(DBGT_ERROR,"Number ended appruptly after exponent");
-                    return 0;
-                }
-                if(flagreg&flag_decplc){
-                    dprintf(DBGT_ERROR,"Number ended appruptly after DecimalSeperator Char");
-                    return 0;
-                }
-                if(flagreg&(flag_in_digits|flag_in_decplcdigits|flag_in_exp_digits)){
-                    if(flagreg&flag_minus_mantis){
-                        mantisVal*=(-1.0);
-                    }
-                    if(flagreg&flag_minus_exp){
-                        exponVal*=(-1);
-                    }
-                    exponVal-=NumOfDecplcDig;
-                    mantisVal*=pow(10,exponVal);
-                    DlAppend(&returnDlP,1,&mantisVal);
-                    flagreg=0;
-                    NumOfDecplcDig=0;
-                    mantisVal=0;
-                    exponVal=0;
-                }
-            break;
-            case match_res_nummatch_dseperator:
-                if(flagreg&flag_in_digits){
-                    flagreg|=flag_in_decplcdigits;         //enable in_decplcdigits flag
-                    flagreg&= ~(flag_in_digits);    //disable in_digits flag
-                }else if(flagreg==0){               //to handle ".2"
-                    flagreg|=flag_in_decplcdigits;
-                    mantisVal=0;
-                }else{
-                    if(flagreg&flag_in_exp_digits){
-                        dprintf(DBGT_ERROR,"unexpected decDigSeparator in exponent");
-                    }else if(flagreg&flag_in_decplcdigits){
-                        dprintf(DBGT_ERROR,"more than one decDigSeperator in mantisse");
-                    }
-                }
-            break;
-            case match_res_nummatch_OrderOfMag:
-                if(flagreg&(flag_in_digits|flag_in_decplcdigits)){
-                    flagreg|=flag_orOfMag;
-                    flagreg&=~(flag_in_digits|flag_in_decplcdigits);    //clear flags
-                }else{
-                    dprintf(DBGT_ERROR,"Unexpected Order of Magnitude Char");
-                    return 0;
-                }
-            break;
-            default:
-                if(flagreg&flag_in_decplcdigits){
-                    NumOfDecplcDig++;
-                    mantisVal*=10;
-                    mantisVal+=matchIndex;
-                }else if(flagreg&flag_decplc){
-                    NumOfDecplcDig++;
-                    flagreg|=flag_in_decplcdigits;
-                    flagreg&=~(flag_decplc);
-                    mantisVal*=10;
-                    mantisVal+=matchIndex;
-                }else if(flagreg&flag_in_digits){
-                    mantisVal*=10;
-                    mantisVal+=matchIndex;
-                }else if(flagreg&flag_orOfMag){
-                    exponVal=matchIndex;
-                    flagreg|=flag_in_exp_digits;
-                    flagreg&=~(flag_orOfMag);
-                }else if(flagreg&flag_in_exp_digits){
-                    exponVal*=10;
-                    exponVal+=matchIndex;
-                }else{
-                    flagreg|=flag_in_digits;
-                    mantisVal=matchIndex;
-                }
-            break;
-        }
-    }
-    //finish parsing last float
-    if(flagreg&flag_orOfMag){
-        dprintf(DBGT_ERROR,"Number ended appruptly after exponent");
-        return 0;
-    }
-    if(flagreg&flag_decplc){
-        dprintf(DBGT_ERROR,"Number ended appruptly after DecimalSeperator Char");
-        return 0;
-    }
-    if(flagreg&(flag_in_digits|flag_in_decplcdigits|flag_in_exp_digits)){
-        if(flagreg&flag_minus_mantis){
-            mantisVal*=(-1.0);
-        }
-        if(flagreg&flag_minus_exp){
-            exponVal*=(-1);
-        }
-        exponVal-=NumOfDecplcDig;
-        mantisVal*=pow(10,exponVal);
-        DlAppend(&returnDlP,1,&mantisVal);
-    }
-    DlDelete(nummatch);       //TODO fix for all return types
-    return returnDlP;
-}
+#define INC_IN_SOURCE_FILE
+#include "xmlReader/stringutils.h"

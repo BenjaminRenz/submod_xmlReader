@@ -2,170 +2,182 @@
 //before using any of the DynamicLists init_matchlists() has to be called
 //also it should not be called twice
 
-struct DynamicList* CM_CharData_start;
-struct DynamicList* CM_IllegalChar;
-struct DynamicList* CM_NonSpaceChar;
-struct DynamicList* CM_AnyChar;
-struct DynamicList* CM_SpaceChar;
-struct DynamicList* CM_NameChar;
-struct DynamicList* CM_NameStartChar;
-struct DynamicList* CM_Equals;
-struct DynamicList* CM_QuoteSingle;
-struct DynamicList* CM_QuoteDouble;
-struct DynamicList* CM_PubidChar_withoutQuotes;
-struct DynamicList* CM_CharData;
-struct DynamicList* CM_LessThanChar;
-struct DynamicList* MCM_Quotes;
-struct DynamicList* MCM_PubidChar;
-struct DynamicList* WM_NameStartChar;
-struct DynamicList* WM_element_endTag;
-struct DynamicList* WM_element_endNonEmpty;
-struct DynamicList* WM_element_endEmpty;
-struct DynamicList* WM_SpaceChar;
-struct DynamicList* WM_XMLDecl_start;
-struct DynamicList* WM_XMLDecl_end;
-struct DynamicList* WM_doctype_start;
-struct DynamicList* WM_element_start;
-struct DynamicList* WM_cdata_start;
-struct DynamicList* WM_cdata_end;
-struct DynamicList* WM_comment_start;
-struct DynamicList* WM_comment_end;
-struct DynamicList* WM_pi_start;
-struct DynamicList* WM_pi_end;
-struct DynamicList* WM_IllegalChar;
-struct DynamicList* WM_NonSpaceChar;
-struct DynamicList* WM_attlist_end;
-struct DynamicList* MWM_NameStartChar;
-struct DynamicList* MWM_element_end;
-struct DynamicList* MWM_start;
+Dl_CM*  CM_CharData_start;
+Dl_CM*  CM_IllegalChar;
+Dl_CM*  CM_NonSpaceChar;
+Dl_CM*  CM_AnyChar;
+Dl_CM*  CM_SpaceChar;
+Dl_CM*  CM_NameChar;
+Dl_CM*  CM_NameStartChar;
+Dl_CM*  CM_Equals;
+Dl_CM*  CM_QuoteSingle;
+Dl_CM*  CM_QuoteDouble;
+Dl_CM*  CM_PubidChar_withoutQuotes;
+Dl_CM*  CM_CharData;
+Dl_CM*  CM_LessThanChar;
+Dl_CM*  CM_PubidChar;
+Dl_MCM* MCM_Quotes;
+Dl_MCM* MCM_AttNameEndOrEqual;
+Dl_WM*  WM_NameStartChar;
+Dl_WM*  WM_element_endTag;
+Dl_WM*  WM_element_endNonEmpty;
+Dl_WM*  WM_element_endEmpty;
+Dl_WM*  WM_SpaceChar;
+Dl_WM*  WM_XMLDecl_start;
+//Dl_WM*  WM_XMLDecl_end;
+Dl_WM*  WM_doctype_start;
+Dl_WM*  WM_element_start;
+Dl_WM*  WM_cdata_start;
+Dl_WM*  WM_cdata_end;
+Dl_WM*  WM_comment_start;
+Dl_WM*  WM_comment_end;
+Dl_WM*  WM_pi_start;
+Dl_WM*  WM_pi_end;
+Dl_WM*  WM_IllegalChar;
+Dl_WM*  WM_NonSpaceChar;
+Dl_WM*  WM_attlist_end;
+Dl_MWM* MWM_XMLDecl_end;
+Dl_MWM* MWM_NameStartChar;
+Dl_MWM* MWM_element_end;
+Dl_MWM* MWM_start;
 
 
 void init_matchlists(void){
-    CM_CharData_start=Dl_CMatch_create(2,'&','&');       //used for something like &amp; or &lt;
-    CM_IllegalChar=Dl_CMatch_create(0x0,0x8, 0xb,0xc, 0xe,0x1f, 0xd800,0xdfff, 0xfffe,0xffff);
-    CM_NonSpaceChar=Dl_CMatch_create(6,0x21,0xd7ff, 0xe000,0xfffd, 0x10000,0x10ffff);   //anything else except space
-    CM_SpaceChar=Dl_CMatch_create(8,0x9,0x9, 0xd,0xd, 0xa,0xa, 0x20,0x20);
-    CM_AnyChar=Dl_CMatch_create(12,0x09,0x09, 0x0a,0x0a, 0x0d,0x0d, 0x20,0xd7ff, 0xe000,0xfffd, 0x10000,0x10ffff);
-    CM_CharData=Dl_CMatch_create(14,0x09,0x09, 0x0a,0x0a, 0x0d,0x0d, 0x20,'<', '<',0xd7ff, 0xe000,0xfffd, 0x10000,0x10ffff);
-    CM_NameStartChar=Dl_CMatch_create(32,        //matches all allowed name start char's
+
+    CM_CharData_start=  Dl_CM_initFromList('&','&');       //used for something like &amp; or &lt;
+    CM_IllegalChar=     Dl_CM_initFromList(0x0,0x8, 0xb,0xc, 0xe,0x1f, 0xd800,0xdfff, 0xfffe,0xffff);
+    CM_NonSpaceChar=    Dl_CM_initFromList(0x21,0xd7ff, 0xe000,0xfffd, 0x10000,0x10ffff);   //anything else except space
+    CM_SpaceChar=       Dl_CM_initFromList(0x9,0x9, 0xd,0xd, 0xa,0xa, 0x20,0x20);
+    CM_AnyChar=         Dl_CM_initFromList(0x09,0x09, 0x0a,0x0a, 0x0d,0x0d, 0x20,0xd7ff, 0xe000,0xfffd, 0x10000,0x10ffff);
+    CM_CharData=        Dl_CM_initFromList(0x09,0x09, 0x0a,0x0a, 0x0d,0x0d, 0x20,'<', '<',0xd7ff, 0xe000,0xfffd, 0x10000,0x10ffff);
+    CM_NameStartChar=   Dl_CM_initFromList(        //matches all allowed name start char's
         ':',':', 'A','Z', '_','_', 'a','z', 0xc0,0xd6,
         0xd8,0xf6, 0xf8,0x2ff, 0x370,0x37d, 0x37f,0x1fff, 0x200c,0x200d,
         0x2070,0x218f, 0x2c00,0x2fef, 0x3001,0xd7ff, 0xf900,0xfdcf, 0xfdf0,0xfffd,
         0x10000,0xeffff
     );
-    CM_NameChar=Dl_CMatch_create(32,        //matches all allowed name start char's
+    CM_NameChar=        Dl_CM_initFromList(        //matches all allowed name start char's
         ':',':', 'A','Z', '_','_', 'a','z', '-','-', '.','.', '0','9', 0xb7,0xb7,
         0xc0,0xd6, 0xd8,0xf6, 0xf8,0x37d, 0x37f,0x1fff, 0x200c,0x200d, 0x203F, 0x2040,
         0x2070,0x218f, 0x2c00,0x2fef, 0x3001,0xd7ff, 0xf900,0xfdcf, 0xfdf0,0xfffd,
         0x10000,0xeffff
     );
     //TODO some of the ranges below can be combined
-    CM_PubidChar_withoutQuotes=Dl_CMatch_create(46,
+    CM_PubidChar_withoutQuotes=Dl_CM_initFromList(
         0x20,0x20, 0xd,0xd, 0xa,0xa, 'a','z', 'A','Z', '0','9', '-','-',
         '(',')', '+','+', ',',',', '.','.', '/','/', ':',':', '=','=', '?','?',
         ';',';', '!','!', '*','*', '#','#', '@','@', '$','$', '_','_', '%','%');
-    CM_Equals=Dl_CMatch_create(2,'=','=');
-    CM_QuoteSingle=Dl_CMatch_create(2,'\'','\'');
-    CM_QuoteDouble=Dl_CMatch_create(2,'"','"');
-    CM_LessThanChar=Dl_CMatch_create(2,'<','<');
-    MCM_PubidChar=Dl_MCMatchP_create(2,CM_PubidChar_withoutQuotes,CM_QuoteSingle);
-    MCM_Quotes=Dl_MCMatchP_create(2,CM_QuoteSingle,CM_QuoteDouble);
-    WM_IllegalChar=Dl_WMatchP_create(1,DlDuplicate(CM_IllegalChar));
-    WM_NonSpaceChar=Dl_WMatchP_create(1,DlDuplicate(CM_NonSpaceChar));
-    WM_NameStartChar=Dl_WMatchP_create(1,CM_NameStartChar);
-    WM_SpaceChar=Dl_WMatchP_create(1,CM_SpaceChar);
-    WM_XMLDecl_start=Dl_WMatchP_create(5,                      //xml declaration
-        Dl_CMatch_create(2,'<','<'),
-        Dl_CMatch_create(2,'?','?'),
-        Dl_CMatch_create(2,'x','x'),
-        Dl_CMatch_create(2,'m','m'),
-        Dl_CMatch_create(2,'l','l'),
-        DlDuplicate(CM_SpaceChar) //whitespace must follow the XMLDecl
+    CM_Equals=          Dl_CM_initFromList('=','=');
+    CM_QuoteSingle=     Dl_CM_initFromList('\'','\'');
+    CM_QuoteDouble=     Dl_CM_initFromList('"','"');
+    CM_LessThanChar=    Dl_CM_initFromList('<','<');
+    CM_PubidChar=       Dl_CM_initFromList(
+        0x20,0x20, 0xd,0xd, 0xa,0xa, 'a','z', 'A','Z', '0','9', '-','-',
+        '(',')', '+','+', ',',',', '.','.', '/','/', ':',':', '=','=', '?','?',
+        ';',';', '!','!', '*','*', '#','#', '@','@', '$','$', '_','_', '%','%',
+        '\'','\'');
+    MCM_Quotes=         Dl_MCM_initFromList(CM_QuoteSingle,CM_QuoteDouble);
+    MCM_AttNameEndOrEqual=Dl_MCM_initFromList(CM_SpaceChar,CM_Equals);
+
+    WM_IllegalChar=     Dl_WM_initFromList(Dl_CM_shallowCopy(CM_IllegalChar));
+    WM_NonSpaceChar=    Dl_WM_initFromList(Dl_CM_shallowCopy(CM_NonSpaceChar));
+    WM_NameStartChar=   Dl_WM_initFromList(CM_NameStartChar);
+    WM_SpaceChar=       Dl_WM_initFromList(CM_SpaceChar);
+    WM_XMLDecl_start=   Dl_WM_initFromList(                      //xml declaration
+        Dl_CM_initFromList('<','<'),
+        Dl_CM_initFromList('?','?'),
+        Dl_CM_initFromList('x','x'),
+        Dl_CM_initFromList('m','m'),
+        Dl_CM_initFromList('l','l'),
+        Dl_CM_shallowCopy(CM_SpaceChar) //whitespace must follow the XMLDecl
     );
-    WM_XMLDecl_end=Dl_WMatchP_create(2,
-        Dl_CMatch_create(2,'?','?'),
-        Dl_CMatch_create(2,'>','>')
+    WM_doctype_start=Dl_WM_initFromList(
+        Dl_CM_initFromList('<','<'),
+        Dl_CM_initFromList('!','!'),
+        Dl_CM_initFromList('D','D'),
+        Dl_CM_initFromList('O','O'),
+        Dl_CM_initFromList('C','C'),
+        Dl_CM_initFromList('T','T'),
+        Dl_CM_initFromList('Y','Y'),
+        Dl_CM_initFromList('P','P'),
+        Dl_CM_initFromList('E','E'),
+        Dl_CM_shallowCopy(CM_SpaceChar)  //whitespace must follow
     );
-    WM_doctype_start=Dl_WMatchP_create(10,
-        Dl_CMatch_create(2,'<','<'),
-        Dl_CMatch_create(2,'!','!'),
-        Dl_CMatch_create(2,'D','D'),
-        Dl_CMatch_create(2,'O','O'),
-        Dl_CMatch_create(2,'C','C'),
-        Dl_CMatch_create(2,'T','T'),
-        Dl_CMatch_create(2,'Y','Y'),
-        Dl_CMatch_create(2,'P','P'),
-        Dl_CMatch_create(2,'E','E'),
-        DlDuplicate(CM_SpaceChar)  //whitespace must follow
+    WM_element_start=Dl_WM_initFromList(
+        Dl_CM_shallowCopy(CM_LessThanChar),
+        Dl_CM_shallowCopy(CM_NameStartChar)
     );
-    WM_element_start=Dl_WMatchP_create(2,
-        DlDuplicate(CM_LessThanChar),
-        DlDuplicate(CM_NameStartChar)
+    WM_element_endTag=Dl_WM_initFromList(
+        Dl_CM_initFromList('<','<'),
+        Dl_CM_initFromList('/','/'),
+        Dl_CM_shallowCopy(CM_NameStartChar)
     );
-    WM_element_endTag=Dl_WMatchP_create(3,
-        Dl_CMatch_create(2,'<','<'),
-        Dl_CMatch_create(2,'/','/'),
-        DlDuplicate(CM_NameStartChar)
+    WM_element_endNonEmpty=Dl_WM_initFromList(
+        Dl_CM_initFromList('>','>')
     );
-    WM_element_endNonEmpty=Dl_WMatchP_create(1,
-        Dl_CMatch_create(2,'>','>')
+    WM_element_endEmpty=Dl_WM_initFromList(
+        Dl_CM_initFromList('/','/'),
+        Dl_CM_initFromList('>','>')
     );
-    WM_element_endEmpty=Dl_WMatchP_create(2,
-        Dl_CMatch_create(2,'/','/'),
-        Dl_CMatch_create(2,'>','>')
+    WM_cdata_start=Dl_WM_initFromList(
+        Dl_CM_initFromList('<','<'),
+        Dl_CM_initFromList('!','!'),
+        Dl_CM_initFromList('[','['),
+        Dl_CM_initFromList('C','C'),
+        Dl_CM_initFromList('D','D'),
+        Dl_CM_initFromList('A','A'),
+        Dl_CM_initFromList('T','T'),
+        Dl_CM_initFromList('A','A'),
+        Dl_CM_initFromList('[','[')
     );
-    WM_cdata_start=Dl_WMatchP_create(9,
-        Dl_CMatch_create(2,'<','<'),
-        Dl_CMatch_create(2,'!','!'),
-        Dl_CMatch_create(2,'[','['),
-        Dl_CMatch_create(2,'C','C'),
-        Dl_CMatch_create(2,'D','D'),
-        Dl_CMatch_create(2,'A','A'),
-        Dl_CMatch_create(2,'T','T'),
-        Dl_CMatch_create(2,'A','A'),
-        Dl_CMatch_create(2,'[','[')
+    WM_cdata_end=Dl_WM_initFromList(
+        Dl_CM_initFromList(']',']'),
+        Dl_CM_initFromList(']',']'),
+        Dl_CM_initFromList('>','>')
     );
-    WM_cdata_end=Dl_WMatchP_create(3,
-        Dl_CMatch_create(2,']',']'),
-        Dl_CMatch_create(2,']',']'),
-        Dl_CMatch_create(2,'>','>')
+    WM_attlist_end=Dl_WM_initFromList(
+        Dl_CM_initFromList('<','<'),
+        Dl_CM_initFromList('!','!'),
+        Dl_CM_initFromList('A','A'),
+        Dl_CM_initFromList('T','T'),
+        Dl_CM_initFromList('T','T'),
+        Dl_CM_initFromList('L','L'),
+        Dl_CM_initFromList('I','I'),
+        Dl_CM_initFromList('S','S'),
+        Dl_CM_initFromList('T','T')
     );
-    WM_attlist_end=Dl_WMatchP_create(9,
-        Dl_CMatch_create(2,'<','<'),
-        Dl_CMatch_create(2,'!','!'),
-        Dl_CMatch_create(2,'A','A'),
-        Dl_CMatch_create(2,'T','T'),
-        Dl_CMatch_create(2,'T','T'),
-        Dl_CMatch_create(2,'L','L'),
-        Dl_CMatch_create(2,'I','I'),
-        Dl_CMatch_create(2,'S','S'),
-        Dl_CMatch_create(2,'T','T')
+    WM_comment_start=Dl_WM_initFromList(                      //Comment
+        Dl_CM_initFromList('<','<'),
+        Dl_CM_initFromList('!','!'),
+        Dl_CM_initFromList('-','-'),
+        Dl_CM_initFromList('-','-')
     );
-    WM_comment_start=Dl_WMatchP_create(4,                      //Comment
-        Dl_CMatch_create(2,'<','<'),
-        Dl_CMatch_create(2,'!','!'),
-        Dl_CMatch_create(2,'-','-'),
-        Dl_CMatch_create(2,'-','-')
+    WM_comment_end=Dl_WM_initFromList(                      //Comment
+        Dl_CM_initFromList('-','-'),
+        Dl_CM_initFromList('-','-'),
+        Dl_CM_initFromList('>','>')
     );
-    WM_comment_end=Dl_WMatchP_create(3,                      //Comment
-        Dl_CMatch_create(2,'-','-'),
-        Dl_CMatch_create(2,'-','-'),
-        Dl_CMatch_create(2,'>','>')
+    WM_pi_start=Dl_WM_initFromList(                      //Processing Instruction
+        Dl_CM_initFromList('<','<'),
+        Dl_CM_initFromList('?','?'),
+        Dl_CM_shallowCopy(CM_NameStartChar)
     );
-    WM_pi_start=Dl_WMatchP_create(3,                      //Processing Instruction
-        Dl_CMatch_create(2,'<','<'),
-        Dl_CMatch_create(2,'?','?'),
-        DlDuplicate(CM_NameStartChar)
+    WM_pi_end=Dl_WM_initFromList(                     //Processing Instruction end
+        Dl_CM_initFromList('?','?'),
+        Dl_CM_initFromList('>','>')
     );
-    WM_pi_end=Dl_WMatchP_create(2,                      //Processing Instruction end
-        Dl_CMatch_create(2,'?','?'),
-        Dl_CMatch_create(2,'>','>')
+    MWM_XMLDecl_end=Dl_MWM_initFromList(
+        Dl_WM_initFromList(
+            Dl_CM_initFromList('?','?'),
+            Dl_CM_initFromList('>','>')
+        )
     );
-    MWM_element_end=Dl_MWMatchPP_create(2,
+
+    MWM_element_end=Dl_MWM_initFromList(
         WM_element_endNonEmpty,
         WM_element_endEmpty
     );
-    MWM_start=Dl_MWMatchPP_create(8,
+    MWM_start=Dl_MWM_initFromList(
         WM_XMLDecl_start,
         WM_doctype_start,
         WM_element_endTag,      //must be before WM_element_start
@@ -180,10 +192,10 @@ void init_matchlists(void){
 
 void deinit_matchlists(void){
     //TODO add all lists
-    DlDelete(WM_XMLDecl_start);
-    DlDelete(WM_XMLDecl_end);
-    DlDelete(WM_doctype_start);
-    DlDelete(WM_element_start);
-    DlDelete(WM_cdata_start);
-    DlDelete(WM_cdata_end);
+    Dl_WM_delete(WM_XMLDecl_start);
+    Dl_WM_delete(WM_doctype_start);
+    Dl_WM_delete(WM_element_start);
+    Dl_WM_delete(WM_cdata_start);
+    Dl_WM_delete(WM_cdata_end);
+    Dl_MWM_delete(MWM_XMLDecl_end);
 }
