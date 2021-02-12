@@ -1,83 +1,82 @@
 #ifndef STRINGUTILS_H_INCLUDED
-    #define STRINGUTILS_H_INCLUDED
-    #include "dynList/dynList.h"
-    #include <stdarg.h>
-    #include <stddef.h>
-    #include <stdint.h>
-    #include <uchar.h>
-    DlTypedef_plain(utf32Char,char32_t);
-    DlTypedef_compareFunc(utf32Char,char32_t);
+#define STRINGUTILS_H_INCLUDED
+#include "dynList/dynList.h"
+#include <stdarg.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <uchar.h>
+DlTypedef_plain(utf32Char,char32_t);
+DlTypedef_compareFunc(utf32Char,char32_t);
 
-    DlTypedef_nested(DlP_utf32Char,Dl_utf32Char*,utf32Char);
-    typedef struct char32Range{
-        char32_t startChar;
-        char32_t endChar;
-    }char32Range;
-    DlTypedef_plain(CM,char32Range);
-    DlTypedef_nested(MCM,Dl_CM*,CM);
-    DlTypedef_nested(WM,Dl_CM*,CM);
-    DlTypedef_nested(MWM,Dl_WM*,WM);
+DlTypedef_nested(DlP_utf32Char,Dl_utf32Char*,utf32Char);
+typedef struct char32Range{
+    char32_t startChar;
+    char32_t endChar;
+}char32Range;
+DlTypedef_plain(CM,char32Range);
+DlTypedef_nested(MCM,Dl_CM*,CM);
+DlTypedef_nested(WM,Dl_CM*,CM);
+DlTypedef_nested(MWM,Dl_WM*,WM);
 
-    DlTypedef_plain(int64,int64_t);
-    DlTypedef_plain(int32,int32_t);
-    DlTypedef_plain(uint32,uint32_t);
-    DlTypedef_plain(float,float);
-    DlTypedef_plain(double,double);
+DlTypedef_plain(int64,int64_t);
+DlTypedef_plain(int32,int32_t);
+DlTypedef_plain(uint32,uint32_t);
+DlTypedef_plain(float,float);
+DlTypedef_plain(double,double);
 
-    #ifndef INC_IN_SOURCE_FILE
+//VA_NARGS() returns the number of passed arguments
+#define VA_NARGS(...) VA_INTERNAL_NARGS(__VA_ARGS__)
+#define VA_INTERNAL_NARGS(...) ((int)(sizeof((int[]){ __VA_ARGS__ })/sizeof(int)))
 
-        //VA_NARGS() returns the number of passed arguments
-        #define VA_NARGS(...) VA_INTERNAL_NARGS(__VA_ARGS__)
-        #define VA_INTERNAL_NARGS(...) ((int)(sizeof((int[]){ __VA_ARGS__ })/sizeof(int)))
+#define VA_NPARGS(...) VA_INTERNAL_NPARGS(__VA_ARGS__)
+#define VA_INTERNAL_NPARGS(...) ((int)(sizeof((void*[]){ __VA_ARGS__ })/sizeof(void*)))
 
-        #define VA_NPARGS(...) VA_INTERNAL_NPARGS(__VA_ARGS__)
-        #define VA_INTERNAL_NPARGS(...) ((int)(sizeof((void*[]){ __VA_ARGS__ })/sizeof(void*)))
-
-        Dl_utf32Char* Dl_utf32Char_fromString(char* inputString);
-        char*         Dl_utf32Char_toStringAlloc(Dl_utf32Char* utf32Input);
-        char*         Dl_utf32Char_toStringAlloc_freeArg1(Dl_utf32Char* utf32Input);
-        void          Dl_utf32Char_print(Dl_utf32Char* utf32Input);
-        Dl_utf32Char* Dl_utf32Char_stripOuterSpaces(Dl_utf32Char* utf32StringDlP);
-        Dl_utf32Char* Dl_utf32Char_stripOuterSpaces_freeArg1(Dl_utf32Char* utf32StringDlP);
+Dl_utf32Char* Dl_utf32Char_fromString(char* inputString);
+char*         Dl_utf32Char_toStringAlloc(Dl_utf32Char* utf32Input);
+char*         Dl_utf32Char_toStringAlloc_freeArg1(Dl_utf32Char* utf32Input);
+void          Dl_utf32Char_print(Dl_utf32Char* utf32Input);
+Dl_utf32Char* Dl_utf32Char_stripOuterSpaces(Dl_utf32Char* utf32StringDlP);
+Dl_utf32Char* Dl_utf32Char_stripOuterSpaces_freeArg1(Dl_utf32Char* utf32StringDlP);
 
 
-        uint32_t utf8ToUtf32(uint8_t* inputString, uint32_t numberOfUTF8Chars, uint32_t* outputString);
-        uint32_t utf32ToUtf8(uint32_t* inputString, uint32_t numberOfUTF32Chars,uint8_t* outputString);
-        size_t utf16ToUtf32(uint16_t* inputString, size_t numberOfUTF16Chars, uint32_t* outputString);
-        size_t utf32CutASCII(uint32_t* inputString, uint32_t numberOfUTF32Chars, char* outputStringNullTer);
+uint32_t utf8ToUtf32(uint8_t* inputString, uint32_t numberOfUTF8Chars, uint32_t* outputString);
+uint32_t utf32ToUtf8(uint32_t* inputString, uint32_t numberOfUTF32Chars,uint8_t* outputString);
+size_t utf16ToUtf32(uint16_t* inputString, size_t numberOfUTF16Chars, uint32_t* outputString);
+size_t utf32CutASCII(uint32_t* inputString, uint32_t numberOfUTF32Chars, char* outputStringNullTer);
 
-        #define Dl_CM_initFromList(...) _internal_Dl_CM_initFromList(VA_NARGS(__VA_ARGS__),__VA_ARGS__)
-        Dl_CM* _internal_Dl_CM_initFromList(uint32_t argumentCount,...);
-        int Dl_CM_MatchSingleCharacter(Dl_utf32Char* StringInUtf32DlP,uint32_t* offsetInStringP,Dl_CM* CmDlP);
-        int Dl_CM_matchAndInc(Dl_utf32Char* StringInUtf32DlP, uint32_t* offsetInStringP, Dl_CM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP);
-        int Dl_CM_match(Dl_utf32Char* StringInUtf32DlP,uint32_t* offsetInStringP, Dl_CM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP);
+#define Dl_CM_initFromList(...) _internal_Dl_CM_initFromList(VA_NARGS(__VA_ARGS__),__VA_ARGS__)
+Dl_CM* _internal_Dl_CM_initFromList(uint32_t argumentCount,...);
+int Dl_CM_MatchSingleCharacter(Dl_utf32Char* StringInUtf32DlP,uint32_t* offsetInStringP,Dl_CM* CmDlP);
+int Dl_CM_matchAndInc(Dl_utf32Char* StringInUtf32DlP, uint32_t* offsetInStringP, Dl_CM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP);
+int Dl_CM_match(Dl_utf32Char* StringInUtf32DlP,uint32_t* offsetInStringP, Dl_CM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP);
 
-        #define Dl_MCM_initFromList(...) _internal_Dl_MCM_initFromList(VA_NPARGS(__VA_ARGS__),__VA_ARGS__)
-        Dl_MCM* _internal_Dl_MCM_initFromList(uint32_t argumentCount,...);
-        int Dl_MCM_matchAndInc(Dl_utf32Char* StringInUtf32DlP, uint32_t* offsetInStringP, Dl_MCM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP);
-        int Dl_MCM_match(Dl_utf32Char* StringInUtf32DlP,uint32_t* offsetInStringP, Dl_MCM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP);
+#define Dl_MCM_initFromList(...) _internal_Dl_MCM_initFromList(VA_NPARGS(__VA_ARGS__),__VA_ARGS__)
+Dl_MCM* _internal_Dl_MCM_initFromList(uint32_t argumentCount,...);
+int Dl_MCM_matchAndInc(Dl_utf32Char* StringInUtf32DlP, uint32_t* offsetInStringP, Dl_MCM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP);
+int Dl_MCM_match(Dl_utf32Char* StringInUtf32DlP,uint32_t* offsetInStringP, Dl_MCM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP);
 
-        #define Dl_WM_initFromList(...) _internal_Dl_WM_initFromList(VA_NPARGS(__VA_ARGS__),__VA_ARGS__)
-        Dl_WM* _internal_Dl_WM_initFromList(uint32_t argumentCount,...);
-        int Dl_WM_matchAndInc(Dl_utf32Char* StringInUtf32DlP, uint32_t* offsetInStringP, Dl_WM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP);
-        int Dl_WM_match(Dl_utf32Char* StringInUtf32DlP,uint32_t* offsetInStringP, Dl_WM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP);
+#define Dl_WM_initFromList(...) _internal_Dl_WM_initFromList(VA_NPARGS(__VA_ARGS__),__VA_ARGS__)
+Dl_WM* _internal_Dl_WM_initFromList(uint32_t argumentCount,...);
+int Dl_WM_matchAndInc(Dl_utf32Char* StringInUtf32DlP, uint32_t* offsetInStringP, Dl_WM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP);
+int Dl_WM_match(Dl_utf32Char* StringInUtf32DlP,uint32_t* offsetInStringP, Dl_WM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP);
 
-        #define Dl_MWM_initFromList(...) _internal_Dl_MWM_initFromList(VA_NPARGS(__VA_ARGS__),__VA_ARGS__)
-        Dl_MWM* _internal_Dl_MWM_initFromList(uint32_t argumentCount,...);
-        int Dl_MWM_matchAndInc(Dl_utf32Char* StringInUtf32DlP, uint32_t* offsetInStringP, Dl_MWM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP);
-        int Dl_MWM_match(Dl_utf32Char* StringInUtf32DlP,uint32_t* offsetInStringP, Dl_MWM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP);
+#define Dl_MWM_initFromList(...) _internal_Dl_MWM_initFromList(VA_NPARGS(__VA_ARGS__),__VA_ARGS__)
+Dl_MWM* _internal_Dl_MWM_initFromList(uint32_t argumentCount,...);
+int Dl_MWM_matchAndInc(Dl_utf32Char* StringInUtf32DlP, uint32_t* offsetInStringP, Dl_MWM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP);
+int Dl_MWM_match(Dl_utf32Char* StringInUtf32DlP,uint32_t* offsetInStringP, Dl_MWM* breakIfMatchDlP, Dl_CM* skipIfMatchDlP);
 
+#ifndef DONT_DEFINE_PARSERS
+#define CreateIntegerTypeTo_Dl_utf32Char_Parser(name,type)                                                                   \
+Dl_##name* Dl_utf32Char_to_##name(Dl_CM* NumSepP,Dl_utf32Char* InputString);                                                 \
+Dl_##name* Dl_utf32Char_to_##name##_freeArg1(Dl_CM* NumSepP,Dl_utf32Char* InputString);
 
-        #define CreateIntegerTypeTo_Dl_utf32Char_Parser(name,type)                                                                   \
-        Dl_##name* Dl_utf32Char_to_##name(Dl_CM* NumSepP,Dl_utf32Char* InputString);                                                 \
-        Dl_##name* Dl_utf32Char_to_##name##_freeArg1(Dl_CM* NumSepP,Dl_utf32Char* InputString);
+#define CreateFloatingPointTypeTo_Dl_utf32Char_Parser(name,type)                                                             \
+Dl_##name* Dl_utf32Char_to_##name(Dl_CM* NumSepP,Dl_CM* OrdOfMagP, Dl_CM* DecSepP,Dl_utf32Char* InputString);                \
+Dl_##name* Dl_utf32Char_to_##name##_freeArg123(Dl_CM* NumSepP,Dl_CM* OrdOfMagP, Dl_CM* DecSepP,Dl_utf32Char* InputString);
 
-        #define CreateFloatingPointTypeTo_Dl_utf32Char_Parser(name,type)                                                             \
-        Dl_##name* Dl_utf32Char_to_##name(Dl_CM* NumSepP,Dl_CM* OrdOfMagP, Dl_CM* DecSepP,Dl_utf32Char* InputString);                \
-        Dl_##name* Dl_utf32Char_to_##name##_freeArg123(Dl_CM* NumSepP,Dl_CM* OrdOfMagP, Dl_CM* DecSepP,Dl_utf32Char* InputString);
-    #endif // STRINGUTILS_C_INCLUDE
-    CreateIntegerTypeTo_Dl_utf32Char_Parser(int32,int32_t);
-    CreateIntegerTypeTo_Dl_utf32Char_Parser(int64,int64_t);
-    CreateFloatingPointTypeTo_Dl_utf32Char_Parser(float,float);
-    CreateFloatingPointTypeTo_Dl_utf32Char_Parser(double,double);
+CreateIntegerTypeTo_Dl_utf32Char_Parser(int32,int32_t);
+CreateIntegerTypeTo_Dl_utf32Char_Parser(int64,int64_t);
+CreateFloatingPointTypeTo_Dl_utf32Char_Parser(float,float);
+CreateFloatingPointTypeTo_Dl_utf32Char_Parser(double,double);
+#endif // DONT_DEFINE_PARSERS
 #endif // STRINGUTILS_H_INCLUDED

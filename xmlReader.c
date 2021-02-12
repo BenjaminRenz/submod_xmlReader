@@ -93,7 +93,7 @@ int readXML(FILE* xmlFile,xmlTreeElement** returnDocumentRootpp){
     }
     match_loop(xmlFileDlP,&offsetInXMLfile,rootDocumentElementp);
     (*returnDocumentRootpp)=rootDocumentElementp;
-    dprintf(DBGT_INFO,"Starting element att itemcnt is %d",(int)(rootDocumentElementp->attributes->itemcnt));
+    dprintf(DBGT_INFO,"Starting element att itemcnt is %d",(int)(rootDocumentElementp->children->itemcnt));
     //printXMLsubelements(rootDocumentElementp);
     return 0;
 }
@@ -141,7 +141,7 @@ void match_loop(Dl_utf32Char* xmlFileDlP,uint32_t* offsetInXMLfilep,xmlTreeEleme
             {
                 xmlTreeElement* newXmlElementP=(xmlTreeElement*)malloc(sizeof(xmlTreeElement));
                 newXmlElementP->attributes= Dl_attP_alloc(0,NULL);
-                newXmlElementP->name=       Dl_utf32Char_alloc(0,NULL);
+                //newXmlElementP->name=       Dl_utf32Char_alloc(0,NULL);  will be later assigned inside parseNameAndAttrib
                 newXmlElementP->charData=   Dl_utf32Char_alloc(0,NULL);
                 newXmlElementP->parent=     ObjectToAttachResultsP;
                 newXmlElementP->type=       xmltype_tag;
@@ -252,7 +252,7 @@ int parseNameAndAttrib(Dl_utf32Char* xmlFileDlP,uint32_t* offsetInXMLfilep,xmlTr
         (*offsetInXMLfilep)+=lengthOfApplyingEndTag;
     }
     void* nameSrcP=xmlFileDlP->items+nameStartOffset;
-    Dl_utf32Char_append(ObjectToAttachResultsP->name,1,nameSrcP);
+    ObjectToAttachResultsP->name=Dl_utf32Char_alloc(nameEndOffset-nameStartOffset,nameSrcP);
     if(matchResult>=0){
         return matchResult;
     }else{

@@ -1,9 +1,11 @@
+#define DONT_DEFINE_PARSERS
 #include "xmlReader.h"
 #include <stdlib.h>     //for malloc
 #include <string.h>     //for memcpy
 #include <math.h>       //for pow
 #include <debugPrint/debugPrint.h>
 #include <mathHelper/mathHelper.h>
+#include <stdarg.h>     //for va_args
 
 Dl_CM* _internal_Dl_CM_initFromList(uint32_t argumentCount,...){
     va_list argp;
@@ -201,8 +203,10 @@ int Dl_CM_match(Dl_utf32Char* StringInUtf32DlP,uint32_t* offsetInStringP, Dl_CM*
             }
         }
         if(skipIfMatchDlP){  //last character was not inside breakIfMatchDlP, check if we are allowed to skip over characters
-            if(Dl_CM_MatchSingleCharacter(StringInUtf32DlP,offsetInStringP,skipIfMatchDlP)){ //check if the character matches out skip characters
+            if(Dl_CM_MatchSingleCharacter(StringInUtf32DlP,offsetInStringP,skipIfMatchDlP)>-1){ //check if the character matches out skip characters
                 (*offsetInStringP)++; //shift offset to prepare to read next character
+            }else{
+                break;   //character not skippable
             }
         }else{
             break;      //no skipping allowed -> missmatch
@@ -225,14 +229,16 @@ int Dl_MCM_match(Dl_utf32Char* StringInUtf32DlP,uint32_t* offsetInStringP, Dl_MC
     while((*offsetInStringP)<StringInUtf32DlP->itemcnt){
         if(breakIfMatchDlP){
             for(size_t McmIdx=0;McmIdx<breakIfMatchDlP->itemcnt;McmIdx++){        //iterate over sub char match lists
-                if((Dl_CM_MatchSingleCharacter(StringInUtf32DlP,offsetInStringP,breakIfMatchDlP->items[McmIdx])>-1)){
+                if(Dl_CM_MatchSingleCharacter(StringInUtf32DlP,offsetInStringP,breakIfMatchDlP->items[McmIdx])>-1){
                     return McmIdx;
                 }
             }
         }
         if(skipIfMatchDlP){  //last character was not inside breakIfMatchDlP, check if we are allowed to skip over characters
-            if(Dl_CM_MatchSingleCharacter(StringInUtf32DlP,offsetInStringP,skipIfMatchDlP)){ //check if the character matches out skip characters
+            if(Dl_CM_MatchSingleCharacter(StringInUtf32DlP,offsetInStringP,skipIfMatchDlP)>-1){ //check if the character matches out skip characters
                 (*offsetInStringP)++; //shift offset to prepare to read next character
+            }else{
+                break;   //character not skippable
             }
         }else{
             break;      //no skipping allowed -> missmatch
@@ -259,7 +265,7 @@ int Dl_WM_match(Dl_utf32Char* StringInUtf32DlP,uint32_t* offsetInStringP, Dl_WM*
                 if(offsetCopy>=StringInUtf32DlP->itemcnt){
                     break;
                 }
-                if((Dl_CM_MatchSingleCharacter(StringInUtf32DlP,offsetInStringP,breakIfMatchDlP->items[WmIdx]))>-1){
+                if(Dl_CM_MatchSingleCharacter(StringInUtf32DlP,&offsetCopy,breakIfMatchDlP->items[WmIdx])>-1){
                     if(WmIdx == (breakIfMatchDlP->itemcnt-1)){ //check if this is the last letter in word
                         return 0;
                     }
@@ -269,8 +275,10 @@ int Dl_WM_match(Dl_utf32Char* StringInUtf32DlP,uint32_t* offsetInStringP, Dl_WM*
             }
         }
         if(skipIfMatchDlP){  //last character was not inside breakIfMatchDlP, check if we are allowed to skip over characters
-            if(Dl_CM_MatchSingleCharacter(StringInUtf32DlP,offsetInStringP,skipIfMatchDlP)){ //check if the character matches out skip characters
+            if(Dl_CM_MatchSingleCharacter(StringInUtf32DlP,offsetInStringP,skipIfMatchDlP)>-1){ //check if the character matches out skip characters
                 (*offsetInStringP)++; //shift offset to prepare to read next character
+            }else{
+                break;   //character not skippable
             }
         }else{
             break;      //no skipping allowed -> missmatch
@@ -298,7 +306,7 @@ int Dl_MWM_match(Dl_utf32Char* StringInUtf32DlP,uint32_t* offsetInStringP, Dl_MW
                     if(offsetCopy>=StringInUtf32DlP->itemcnt){
                         break;
                     }
-                    if((Dl_CM_MatchSingleCharacter(StringInUtf32DlP,offsetInStringP,breakIfWmDlP->items[WmIdx]))>-1){
+                    if(Dl_CM_MatchSingleCharacter(StringInUtf32DlP,&offsetCopy,breakIfWmDlP->items[WmIdx])>-1){
                         if(WmIdx == (breakIfWmDlP->itemcnt-1)){ //check if this is the last letter in word
                             return MwmIdx;
                         }
@@ -309,8 +317,10 @@ int Dl_MWM_match(Dl_utf32Char* StringInUtf32DlP,uint32_t* offsetInStringP, Dl_MW
             }
         }
         if(skipIfMatchDlP){  //last character was not inside breakIfMatchDlP, check if we are allowed to skip over characters
-            if(Dl_CM_MatchSingleCharacter(StringInUtf32DlP,offsetInStringP,skipIfMatchDlP)){ //check if the character matches out skip characters
+            if(Dl_CM_MatchSingleCharacter(StringInUtf32DlP,offsetInStringP,skipIfMatchDlP)>-1){ //check if the character matches out skip characters
                 (*offsetInStringP)++; //shift offset to prepare to read next character
+            }else{
+                break;   //character not skippable
             }
         }else{
             break;      //no skipping allowed -> missmatch
@@ -346,25 +356,22 @@ Dl_utf32Char* Dl_utf32Char_stripOuterSpaces_freeArg1(Dl_utf32Char* utf32StringDl
 
 
 #define CreateIntegerTypeTo_Dl_utf32Char_Parser(name,type)                                                                  \
-Dl_##name* Dl_utf32Char_to_##name(Dl_CM* NumSepP,Dl_utf32Char* InputString){                                                \
-    return Dl_utf32Char_to_##name##_freeArg1(Dl_##name##_shallowCopy(NumSepP),InputString);                                 \
-}                                                                                                                           \
-                                                                                                                            \
 Dl_##name* Dl_utf32Char_to_##name##_freeArg1(Dl_CM* NumSepP,Dl_utf32Char* InputString){                                     \
     Dl_##name* returnDlP=Dl_##name##_alloc(0,NULL);                                                                         \
     uint32_t offsetInString=0;                                                                                              \
     double mantisVal=0;                                                                                                     \
-    enum{flag_in_digits=        (1<<0),                                                                                     \
-         flag_minus_mantis=     (1<<5),                                                                                     \
-         };                                                                                                                 \
+    enum {                                                                                                                  \
+         flag_in_digits=        (1<<0),                                                                                     \
+         flag_minus_mantis=     (1<<5)                                                                                      \
+    };                                                                                                                      \
     int32_t flagreg=0;                                                                                                      \
-    int32_t NumOfDecplcDig=0;                                                                                               \
     int32_t exponVal=0;                                                                                                     \
     enum {                                                                                                                  \
         match_res_nummatch_sign=        10,                                                                                 \
-        match_res_nummatch_nseperator=  11,                                                                                 \
-        match_res_nummatch_illegal=     12                                                                                  \
-    };                                                                                                                      \
+        match_res_nummatch_nseparator=  11,                                                                                 \
+        match_res_nummatch_illegal=     12};                                                                                \
+                                                                                                                            \
+                                                                                                                            \
     Dl_MCM* nummatch=Dl_MCM_initFromList(                                                                                   \
         Dl_CM_initFromList('0','0'),                                                                                        \
         Dl_CM_initFromList('1','1'),                                                                                        \
@@ -395,14 +402,14 @@ Dl_##name* Dl_utf32Char_to_##name##_freeArg1(Dl_CM* NumSepP,Dl_utf32Char* InputS
                     return 0;                                                                                               \
                 }                                                                                                           \
             break;                                                                                                          \
-            case match_res_nummatch_nsperator:                                                                              \
+            case match_res_nummatch_nseparator:                                                                             \
                 if(flagreg&flag_in_digits){                                                                                 \
                     if(flagreg&flag_minus_mantis){                                                                          \
                         mantisVal*=(-1);                                                                                    \
                     }                                                                                                       \
                     mantisVal*=pow(10,exponVal);                                                                            \
-                    type retVal=(type*)mantisVal:                                                                           \
-                    Dl_##name##_append(returnDlP,&retVal);                                                                  \
+                    type retVal=(type)mantisVal;                                                                            \
+                    Dl_##name##_append(returnDlP,1,&retVal);                                                                \
                     flagreg=0;                                                                                              \
                     mantisVal=0;                                                                                            \
                 }                                                                                                           \
@@ -418,24 +425,22 @@ Dl_##name* Dl_utf32Char_to_##name##_freeArg1(Dl_CM* NumSepP,Dl_utf32Char* InputS
         if(flagreg&flag_minus_mantis){                                                                                      \
             mantisVal*=(-1);                                                                                                \
         }                                                                                                                   \
-        type retVal=(type*)mantisVal:                                                                                       \
-        Dl_##name##_append(returnDlP,&retVal);                                                                              \
+        type retVal=(type)mantisVal;                                                                                        \
+        Dl_##name##_append(returnDlP,1,&retVal);                                                                            \
     }                                                                                                                       \
     Dl_MCM_delete(nummatch);                                                                                                \
     return returnDlP;                                                                                                       \
+}                                                                                                                           \
+Dl_##name* Dl_utf32Char_to_##name(Dl_CM* NumSepP,Dl_utf32Char* InputString){                                                \
+    return Dl_utf32Char_to_##name##_freeArg1(Dl_CM_shallowCopy(NumSepP),InputString);                                       \
 }
 
 
 
 
-
 #define CreateFloatingPointTypeTo_Dl_utf32Char_Parser(name,type)                                                            \
-Dl_##name* Dl_utf32Char_to_##name(Dl_CM* NumSepP,Dl_CM* OrdOfMagP, Dl_CM* DecSepP,Dl_utf32Char* InputString){               \
-    return Dl_utf32Char_to_##name##_freeArg123(Dl_##name##_shallowCopy(NumSepP), Dl_##name##_shallowCopy(OrdOfMagP), Dl_##name##_shallowCopy(DecSepP), InputString); \
-}                                                                                                                           \
-                                                                                                                            \
 Dl_##name* Dl_utf32Char_to_##name##_freeArg123(Dl_CM* NumSepP,Dl_CM* OrdOfMagP, Dl_CM* DecSepP,Dl_utf32Char* InputString){  \
-    Dl_##name##* returnDlP=Dl_##name##_alloc(0,NULL);                                                                       \
+    Dl_##name* returnDlP=Dl_##name##_alloc(0,NULL);                                                                         \
     uint32_t offsetInString=0;                                                                                              \
     double mantisVal=0;                                                                                                     \
     enum{flag_in_digits=        (1<<0),                                                                                     \
@@ -451,7 +456,7 @@ Dl_##name* Dl_utf32Char_to_##name##_freeArg123(Dl_CM* NumSepP,Dl_CM* OrdOfMagP, 
     int32_t exponVal=0;                                                                                                     \
     enum {                                                                                                                  \
         match_res_nummatch_sign=        10,                                                                                 \
-        match_res_nummatch_nseperator=  11,                                                                                 \
+        match_res_nummatch_nseparator=  11,                                                                                 \
         match_res_nummatch_dseperator=  12,                                                                                 \
         match_res_nummatch_OrderOfMag=  13,                                                                                 \
         match_res_nummatch_illegal=     14                                                                                  \
@@ -490,7 +495,7 @@ Dl_##name* Dl_utf32Char_to_##name##_freeArg123(Dl_CM* NumSepP,Dl_CM* OrdOfMagP, 
                     return 0;                                                                                               \
                 }                                                                                                           \
             break;                                                                                                          \
-            case match_res_nummatch_nseperator:                                                                             \
+            case match_res_nummatch_nseparator:                                                                             \
                 if(flagreg&flag_orOfMag){                                                                                   \
                     dprintf(DBGT_ERROR,"Number ended appruptly after exponent");                                            \
                     return 0;                                                                                               \
@@ -508,8 +513,8 @@ Dl_##name* Dl_utf32Char_to_##name##_freeArg123(Dl_CM* NumSepP,Dl_CM* OrdOfMagP, 
                     }                                                                                                       \
                     exponVal-=NumOfDecplcDig;                                                                               \
                     mantisVal*=pow(10,exponVal);                                                                            \
-                    type retVal=(type*)mantisVal:                                                                           \
-                    Dl_##name##_append(returnDlP,&retVal);                                                                  \
+                    type retVal=(type)mantisVal;                                                                            \
+                    Dl_##name##_append(returnDlP,1,&retVal);                                                                \
                     flagreg=0;                                                                                              \
                     NumOfDecplcDig=0;                                                                                       \
                     mantisVal=0;                                                                                            \
@@ -587,13 +592,18 @@ Dl_##name* Dl_utf32Char_to_##name##_freeArg123(Dl_CM* NumSepP,Dl_CM* OrdOfMagP, 
         }                                                                                                                   \
         exponVal-=NumOfDecplcDig;                                                                                           \
         mantisVal*=pow(10,exponVal);                                                                                        \
-        type retVal=(type*)mantisVal:                                                                                       \
-        Dl_##name##_append(returnDlP,&retVal);                                                                              \
+        type retVal=(type)mantisVal;                                                                                        \
+        Dl_##name##_append(returnDlP,1,&retVal);                                                                            \
     }                                                                                                                       \
     Dl_MCM_delete(nummatch);                                                                                                \
     return returnDlP;                                                                                                       \
+}                                                                                                                           \
+Dl_##name* Dl_utf32Char_to_##name(Dl_CM* NumSepP,Dl_CM* OrdOfMagP, Dl_CM* DecSepP,Dl_utf32Char* InputString){               \
+    return Dl_utf32Char_to_##name##_freeArg123(Dl_CM_shallowCopy(NumSepP), Dl_CM_shallowCopy(OrdOfMagP), Dl_CM_shallowCopy(DecSepP), InputString); \
 }
 
 
-#define INC_IN_SOURCE_FILE
-#include "xmlReader/stringutils.h"
+CreateIntegerTypeTo_Dl_utf32Char_Parser(int32,int32_t);
+CreateIntegerTypeTo_Dl_utf32Char_Parser(int64,int64_t);
+CreateFloatingPointTypeTo_Dl_utf32Char_Parser(float,float);
+CreateFloatingPointTypeTo_Dl_utf32Char_Parser(double,double);
