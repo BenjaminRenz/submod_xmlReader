@@ -57,8 +57,9 @@ Dl_utf32Char* Dl_utf32Char_fromString(char* inputString){
         return NULL;
     }
     uint32_t stringlength=0;
-    while(inputString[stringlength++]){}                                        //calculate length of string until null termination character
-    Dl_utf32Char* outputString=Dl_utf32Char_alloc(--stringlength,NULL);   //allocate sufficient memory minus termination char
+    while(inputString[stringlength++]){}            //calculate length of string until null termination character
+    stringlength-=1;                                //allocate sufficient memory minus termination char
+    Dl_utf32Char* outputString=Dl_utf32Char_alloc(stringlength,NULL);
     for(uint32_t index=0;index<stringlength;index++){
         outputString->items[index]=inputString[index];
     }
@@ -70,7 +71,7 @@ char* Dl_utf32Char_toStringAlloc(Dl_utf32Char* utf32Input){
         dprintf(DBGT_ERROR,"list ptr empty");
         return 0;
     }
-    char* outstring=(char*)malloc(sizeof(char*)*(utf32Input->itemcnt+1));
+    char* outstring=(char*)malloc(sizeof(char)*(utf32Input->itemcnt+1));
     utf32CutASCII(utf32Input->items,utf32Input->itemcnt,outstring);
     return outstring;
 }
